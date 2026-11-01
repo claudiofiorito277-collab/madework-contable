@@ -18,7 +18,7 @@ export const MENU = [
     { ruta: 'proveedores', texto: 'Proveedores' },
     { ruta: 'tesoreria', texto: 'Tesorería y cheques', roles: ['administrador', 'contador', 'consulta'] },
     { ruta: 'contabilidad', texto: 'Contabilidad', roles: ['administrador', 'contador', 'consulta'] },
-    { texto: 'Costos de obra', etapa: 7 },
+    { ruta: 'costos', texto: 'Costos de obra' },
     { texto: 'Reportes', etapa: 8 },
   ] },
   { grupo: 'Configuración', items: [

@@ -150,5 +150,14 @@ check('el operador no cambia la configuración', (await uno(`select cuenta_id fr
 const au = await uno(`select count(distinct tabla)::int t from auditoria where tabla in ('asientos','asiento_lineas','ejercicios','imputaciones_contables')`);
 check('auditoría registra asientos, líneas, ejercicios y configuración', au.t === 4);
 
+console.log('\n8) Compatibilidad con las etapas anteriores');
+await comoE(U1, `insert into proveedores (razon_social, cuit, condicion_iva) values ('Pinturerías Córdoba (DEMO)', '30500000003', 'RI')`);
+const prov = (await uno(`select id from proveedores`)).id;
+try {
+  await comoQ(U1, `select fn_registrar_comprobante_compra($1::jsonb)`, [JSON.stringify({ proveedor_id: prov, tipo_codigo: '1', punto_venta: 4, numero: 77, fecha: '2027-01-05',
+    alicuotas: [{ alicuota: 'IVA_21', neto: 1000, iva: 210 }], imputaciones: [{ centro_costo_id: (await uno(`select id from centros_costo limit 1`)).id, porcentaje: 100, importe: 1000 }] })]);
+  check('después de la 006 se siguen cargando facturas de compra con imputación', true);
+} catch (e) { check('después de la 006 se siguen cargando facturas de compra con imputación', false, e.message); }
+
 console.log(`\nResultado: ${ok} OK, ${mal} fallas`);
 if (mal) process.exit(1);

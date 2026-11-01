@@ -2,7 +2,7 @@
 
 Sistema para los trabajos con Caminos de las Sierras. Separado de cualquier otro sistema de MADEWORK.
 
-**Estado:** Etapa 6 de 9 · contabilidad general (sobre las Etapas 1 a 5: base, contratos y certificados, ventas y cobranzas, compras y pagos, tesorería).
+**Estado:** Etapa 7 de 9 · costos de obra (sobre las Etapas 1 a 6: base, contratos y certificados, ventas y cobranzas, compras y pagos, tesorería, contabilidad).
 
 ---
 
@@ -409,6 +409,103 @@ Todos tienen botón **Imprimir** (o guardar como PDF desde la impresión).
 - 37 pruebas de pantallas con el **criterio de aceptación** sobre los datos DEMO de las etapas anteriores: el balance de sumas y saldos cuadra, cada uno de los asientos automáticos abre su comprobante, y con el mes cerrado no se puede cargar factura, compra, cobranza, pago ni asiento, ni anular. También: asiento manual desbalanceado rechazado, anulación con contraasiento, reapertura con motivo y regeneración tras cambiar una cuenta.
 - Se volvieron a correr las pruebas de pantallas de las Etapas 2 a 5: sin cambios.
 
+## Etapa 7 · Costos de obra
+
+El **costo real de la obra**, cargado desde el campo: personal con su costo por hora o por jornal, partes diarios de trabajo, vehículos y equipos, materiales con stock por depósito y obrador, y costos indirectos prorrateados entre contratos. Con eso, el sistema muestra el costo real de cada ítem del contrato y el **costo por columna**, comparado con el precio del contrato.
+
+El sistema **no liquida sueldos**: solo registra el costo de cada persona para la obra.
+
+### Instalación (sobre la Etapa 6)
+
+1. Subir a GitHub las carpetas `css`, `js`, `sql` y `tests`, y los archivos `index.html`, `README.md` y `package.json`.
+2. Supabase → **SQL Editor** → correr `sql/007_costos.sql`. Tiene que decir *Success*. Se corre una sola vez.
+3. En el navegador, recargar con **Ctrl + F5**.
+
+**Corrección de la Etapa 6:** `sql/006_contabilidad.sql` se corrigió (le cambiaba el control de las imputaciones de compras de la Etapa 4 y dejaba de cargar facturas de compra). Como todavía no se había corrido, alcanza con correr la **006 corregida** de esta carpeta antes de la 007.
+
+### Primeros pasos
+
+1. **Costos de obra → Personal → + Persona.** Nombre, categoría, modalidad (relación de dependencia, monotributista o subcontratista) y cuadrilla. Después, **Nuevo costo**: el costo total para la empresa por jornal o por hora, desde qué fecha rige. Para un aumento se carga un costo nuevo con su fecha; el anterior queda para los partes viejos.
+2. **Vehículos y equipos → + Vehículo o equipo** (camión, hidroelevador, compresor…) y **Nueva tarifa** por hora o por día.
+3. **Materiales y stock → + Material** (por ejemplo, *Esmalte amarillo vial*, en litros, con su stock mínimo) y **+ Depósito u obrador** (el obrador de la obra se asocia al contrato).
+4. Al comprar pintura: **+ Ingreso**, con el costo unitario y la **factura de compra**. Después, **+ Transferencia** del depósito al obrador.
+
+### Cómo se usa
+
+#### Parte diario (desde el celular)
+
+**+ Parte diario**: fecha, contrato, ítem (por ejemplo, *Pintura de columnas*), cuadrilla y **cantidad producida** (columnas pintadas en el día).
+
+- **Personal:** el botón **Cuadrilla A con 1 jornal** carga a todos los de la cuadrilla. Cada persona lleva jornales **o** horas.
+- **Equipos:** horas o días de uso de cada equipo.
+- **Materiales consumidos:** salen del stock del obrador y se cargan al ítem del parte. Si no hay stock suficiente, no deja registrar.
+
+Lo puede cargar el operador desde la obra; él **no ve los costos**. Un parte no se modifica: si está mal, el administrador o el contador lo anulan con motivo y se carga de nuevo.
+
+#### Costo por ítem
+
+**Costos de obra → Costo por ítem**, eligiendo contrato y fechas:
+
+- **Mano de obra y equipos:** horas, jornales y días de los partes, por la tarifa vigente en la fecha de cada parte.
+- **Materiales:** los consumos, valuados al **costo promedio ponderado**.
+- **Otras compras:** facturas imputadas a la obra que **no** entraron al stock (por ejemplo, alquiler de andamios). Las que entraron al stock se cuentan por sus consumos, no dos veces.
+- **Indirectos:** la parte que le toca al contrato.
+
+Para cada ítem se ve el total, lo producido, el **costo por unidad** (costo por columna), el precio del contrato y el **margen por unidad**. Arriba, las tarjetas del ítem principal. Abajo, el detalle de los partes, los consumos y los indirectos del período.
+
+Si una persona o un equipo no tiene costo a la fecha de un parte, aparece el aviso **Revisar** (ese costo no suma hasta que se carga).
+
+#### Materiales y stock
+
+- **Stock** por material y depósito, con su costo promedio y su valor; aviso cuando el total baja del mínimo.
+- **+ Consumo en obra**, **+ Transferencia**, **+ Ingreso** y **+ Ajuste** (faltante o sobrante de inventario).
+- Un movimiento no se borra: se anula con motivo. No se anula un ingreso si ese material ya salió del depósito.
+
+#### Vehículos y equipos
+
+El uso se carga en el parte diario. Además se registran **combustible** (litros, importe, km u horas de motor) y **mantenimiento** (con fecha del próximo service, que avisa cuando llega). La tabla compara lo que se le **cargó a la obra** por uso con el **gasto real** del mes de cada equipo.
+
+#### Costos indirectos
+
+Seguros, pólizas, administración y otros gastos que no son de una sola obra. Cada uno se reparte entre los contratos con una regla:
+
+- **Proporcional al costo directo del mes** (recomendada).
+- **Proporcional al monto de cada contrato.**
+- **En partes iguales** entre los contratos activos.
+- **Porcentajes fijos** por contrato (tienen que sumar 100 %).
+
+Dentro del contrato, el indirecto se reparte entre los ítems según su costo directo. Una factura que ya se imputó a una obra no se puede cargar también como indirecto.
+
+### Quién ve qué
+
+- **Administrador y contador:** todo, incluidos CUIL, datos personales y costos de personas y equipos.
+- **Operador:** carga partes, consumos, transferencias y combustible. Ve los nombres del personal, pero no sus datos personales ni lo que cuesta cada uno.
+- **Consulta:** ve partes, stock y movimientos, sin datos personales ni costos de personas.
+
+### Reglas que aplica la base de datos
+
+- Un parte necesita al menos una persona o un equipo; cada línea lleva horas o jornales (días), nunca las dos; una persona no se repite en el mismo parte; máximo 24 horas.
+- No se consume ni se transfiere más de lo que hay en el depósito.
+- Las tarifas no se modifican: se carga una nueva con su fecha.
+- Partes, movimientos de stock, gastos de equipos e indirectos no se borran: se anulan con motivo.
+- Con el **mes cerrado** no se cargan partes, movimientos de stock, combustible ni indirectos con fecha de ese mes.
+- Todo queda en la auditoría.
+
+### A confirmar con el contador (Etapa 7)
+
+- **Costo por persona:** qué incluir (sueldo, cargas sociales, ART, aguinaldo y vacaciones proporcionales) para que el costo por jornal sea el real.
+- **Costo por hora de los equipos propios:** amortización, seguro y combustible estimados.
+- **Regla de prorrateo** de cada indirecto.
+- Valuación del stock al **costo promedio ponderado** (alternativa: último precio de compra).
+- Si conviene registrar contablemente los consumos de materiales (hoy la compra se contabiliza al costo de obra como en la Etapa 6).
+
+### Pruebas (Etapa 7)
+
+- 132 pruebas de cálculo (11 nuevas de costos: costo de un parte diario con tarifas vigentes, faltantes de tarifa, stock y costo promedio después de consumos, stock insuficiente, prorrateo de indirectos con cada regla sin perder centavos, costo por ítem y por unidad).
+- 320 pruebas de base de datos (Etapas 1 a 7; 44 nuevas de costos: permisos de datos personales y costos, partes, stock, anulaciones, indirectos y mes cerrado; y una nueva que detectó y verifica la corrección de la 006).
+- 25 pruebas de pantallas con el **criterio de aceptación**: una semana de partes (3 personas, hidroelevador 8 h por día, 60 columnas) y consumos de pintura (120 l). El costo real del ítem "Pintura de columnas" da **$ 3.395.000** y el **costo por columna, $ 56.583,33**, contra un precio de $ 172.670. Además: la factura de pintura que entró al stock no se cuenta dos veces, el stock queda en 0 en el obrador, el operador carga un parte desde el celular sin ver costos ni datos personales, y con el mes cerrado el parte se rechaza.
+- Se volvieron a correr las pruebas de pantallas de las Etapas 2 a 6: sin cambios.
+
 ---
 
 ## Pruebas automáticas
@@ -416,9 +513,9 @@ Todos tienen botón **Imprimir** (o guardar como PDF desde la impresión).
 Requieren [Node.js](https://nodejs.org) 20 o superior.
 
 ```
-npm test            # 121 pruebas: IVA, redondeo, vigencias, CUIT, certificados, ventas, compras, tesorería, contabilidad
+npm test            # 132 pruebas: IVA, redondeo, vigencias, CUIT, certificados, ventas, compras, tesorería, contabilidad, costos
 npm install         # una vez, para la prueba de base de datos
-npm run test:sql    # 275 pruebas: migraciones 001 a 006, permisos, auditoría, certificados, ventas, compras, tesorería, contabilidad
+npm run test:sql    # 320 pruebas: migraciones 001 a 007, permisos, auditoría, certificados, ventas, compras, tesorería, contabilidad, costos
 ```
 
 ---
@@ -430,7 +527,7 @@ index.html            Entrada
 css/app.css           Estilos (computadora y celular)
 js/config.js          Conexión a Supabase (completar)
 js/app.js             Arranque, sesión y navegación
-js/core/              Lógica pura (IVA, redondeo, vigencias, CUIT, certificados, ventas, compras, tesorería, asientos), con pruebas
+js/core/              Lógica pura (IVA, redondeo, vigencias, CUIT, certificados, ventas, compras, tesorería, asientos, costos), con pruebas
 js/data/              Única capa que habla con Supabase
 js/ui/                Pantallas
 sql/001_base.sql      Migración de la Etapa 1
@@ -439,6 +536,7 @@ sql/003_ventas.sql    Migración de la Etapa 3
 sql/004_compras.sql   Migración de la Etapa 4
 sql/005_tesoreria.sql Migración de la Etapa 5
 sql/006_contabilidad.sql Migración de la Etapa 6
+sql/007_costos.sql    Migración de la Etapa 7
 tests/                Pruebas automáticas
 ```
 
@@ -463,3 +561,4 @@ tests/                Pruebas automáticas
 - Fecha de cierre del ejercicio.
 - Cuentas de la configuración de imputaciones contables.
 - Ajuste por inflación contable (no se calcula).
+- Costo por persona y por equipo, y reglas de prorrateo de indirectos.

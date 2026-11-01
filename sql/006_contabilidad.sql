@@ -51,7 +51,7 @@ create table public.imputaciones_contables (
 );
 create trigger trg_imput_mod before update on public.imputaciones_contables for each row execute function public.fn_set_modificado();
 
-create or replace function public.fn_imputaciones_control()
+create or replace function public.fn_imputaciones_contables_control()
 returns trigger language plpgsql security definer set search_path = public as $$
 begin
   if new.cuenta_id is not null and not exists (select 1 from public.plan_cuentas where id = new.cuenta_id and imputable and activo) then
@@ -60,7 +60,7 @@ begin
   if new.clave is distinct from old.clave then raise exception 'La clave no se modifica'; end if;
   return new;
 end $$;
-create trigger trg_imput_control before update on public.imputaciones_contables for each row execute function public.fn_imputaciones_control();
+create trigger trg_imput_control before update on public.imputaciones_contables for each row execute function public.fn_imputaciones_contables_control();
 
 insert into public.imputaciones_contables (clave, descripcion, grupo, cuenta_id, observacion)
 select x.clave, x.descripcion, x.grupo, (select id from public.plan_cuentas where codigo = x.codigo), x.obs

@@ -388,3 +388,63 @@ export const contabilidad = {
   async reabrirPeriodo(anio, mes, motivo) { return q(sb.rpc('fn_reabrir_periodo', { p_anio: anio, p_mes: mes, p_motivo: motivo })); },
   async cerrarEjercicio(anio) { return q(sb.rpc('fn_cerrar_ejercicio', { p_anio: anio })); },
 };
+
+// ---------- Costos de obra (Etapa 7) ----------
+const rpc1 = (fn, p) => q(sb.rpc(fn, { p }));
+export const costos = {
+  // Personal
+  async personal() { return q(sb.from('personal').select('*').order('nombre')); },
+  async crearPersona(p) { return q(sb.from('personal').insert(p).select()); },
+  async actualizarPersona(id, c) { return qActualizar(sb.from('personal').update(c).eq('id', id).select()); },
+  async datosPersonales() { return q(sb.from('personal_datos').select('*')); },
+  async guardarDatos(personalId, d, existe) {
+    return existe ? qActualizar(sb.from('personal_datos').update(d).eq('personal_id', personalId).select())
+      : q(sb.from('personal_datos').insert({ ...d, personal_id: personalId }).select());
+  },
+  async tarifasPersonal() { return q(sb.from('personal_tarifas').select('*').order('vigente_desde')); },
+  async nuevaTarifaPersonal(t) { return q(sb.from('personal_tarifas').insert(t).select()); },
+  // Equipos
+  async equipos() { return q(sb.from('equipos').select('*').order('codigo')); },
+  async crearEquipo(e) { return q(sb.from('equipos').insert(e).select()); },
+  async actualizarEquipo(id, c) { return qActualizar(sb.from('equipos').update(c).eq('id', id).select()); },
+  async tarifasEquipos() { return q(sb.from('equipo_tarifas').select('*').order('vigente_desde')); },
+  async nuevaTarifaEquipo(t) { return q(sb.from('equipo_tarifas').insert(t).select()); },
+  async gastosEquipos() { return q(sb.from('equipo_gastos').select('*').order('fecha', { ascending: false })); },
+  async nuevoGastoEquipo(g) { return q(sb.from('equipo_gastos').insert(g).select()); },
+  async anularGastoEquipo(id, motivo) { return qActualizar(sb.from('equipo_gastos').update({ estado: 'anulado', motivo }).eq('id', id).select()); },
+  // Partes diarios
+  async partes({ contratoId, desde, hasta } = {}) {
+    let c = sb.from('v_partes').select('*').order('fecha', { ascending: false });
+    if (contratoId) c = c.eq('contrato_id', contratoId);
+    if (desde) c = c.gte('fecha', desde);
+    if (hasta) c = c.lte('fecha', hasta);
+    return q(c);
+  },
+  async parte(id) {
+    const [p, pers, eqs] = await Promise.all([q(sb.from('v_partes').select('*').eq('id', id).maybeSingle()),
+      q(sb.from('parte_personal').select('*').eq('parte_id', id)), q(sb.from('parte_equipos').select('*').eq('parte_id', id))]);
+    return p ? { ...p, personal: pers, equipos: eqs } : null;
+  },
+  async lineasPartes() {
+    const [pers, eqs] = await Promise.all([q(sb.from('parte_personal').select('*')), q(sb.from('parte_equipos').select('*'))]);
+    return { pers, eqs };
+  },
+  async registrarParte(p) { return rpc1('fn_registrar_parte', p); },
+  async anularParte(id, motivo) { return q(sb.rpc('fn_anular_parte', { p_id: id, p_motivo: motivo })); },
+  // Materiales
+  async materiales() { return q(sb.from('materiales').select('*').order('codigo')); },
+  async crearMaterial(m) { return q(sb.from('materiales').insert(m).select()); },
+  async actualizarMaterial(id, c) { return qActualizar(sb.from('materiales').update(c).eq('id', id).select()); },
+  async depositos() { return q(sb.from('depositos').select('*').order('nombre')); },
+  async crearDeposito(d) { return q(sb.from('depositos').insert(d).select()); },
+  async stock() { return q(sb.from('v_stock').select('*')); },
+  async movimientosMaterial() { return q(sb.from('v_material_movimientos').select('*').order('fecha', { ascending: false }).order('creado_en', { ascending: false })); },
+  async moverMaterial(p) { return rpc1('fn_movimiento_material', p); },
+  async ingresoDesdeCompra(p) { return rpc1('fn_ingreso_desde_compra', p); },
+  async anularMovimientoMaterial(id, motivo) { return q(sb.rpc('fn_anular_movimiento_material', { p_id: id, p_motivo: motivo })); },
+  // Indirectos
+  async indirectos() { return q(sb.from('costos_indirectos').select('*, indirecto_porcentajes(*)').order('fecha', { ascending: false })); },
+  async registrarIndirecto(p) { return rpc1('fn_registrar_indirecto', p); },
+  async anularIndirecto(id, motivo) { return q(sb.rpc('fn_anular_indirecto', { p_id: id, p_motivo: motivo })); },
+  async costosImputados() { return (await q(sb.from('v_costos_imputados').select('*'))).filter((x) => x.contrato_id); },
+};

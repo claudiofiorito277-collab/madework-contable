@@ -239,3 +239,11 @@ details.tarjeta summary { cursor: pointer; }
   .imp-pie { font-size: 8pt; color: #555; margin-top: 20px; }
   @page { size: A4; margin: 14mm; }
 }
+
+/* ---------- Partes diarios (Etapa 7): líneas apiladas, cómodas en el celular ---------- */
+.lineas-parte { display: flex; flex-direction: column; gap: .5rem; }
+.linea-parte { display: flex; flex-wrap: wrap; gap: .5rem; align-items: flex-end; padding: .5rem; border: 1px solid var(--borde); border-radius: var(--radio); background: #fbfcfe; }
+.linea-parte .campo { margin: 0; flex: 1 1 140px; }
+.linea-parte .campo-chico { flex: 0 1 90px; }
+.linea-parte select, .linea-parte input { width: 100%; }
+.costo-parte { display: flex; gap: 1rem; flex-wrap: wrap; font-variant-numeric: tabular-nums; }

@@ -3,6 +3,9 @@ import { encabezado } from './layout.js';
 import { resumen } from '../data/repos.js';
 import { diasEntre } from '../core/certificados.js';
 import { alertasCheques } from '../core/tesoreria.js';
+import { aCentavos } from '../core/redondeo.js';
+import { cent } from './dom.js';
+import { margenContratos } from '../data/reportes.js';
 
 const TIPOS_POLIZA = { responsabilidad_civil: 'Responsabilidad civil', caucion_anticipo: 'Caución de anticipo', caucion_cumplimiento: 'Caución de cumplimiento',
   art: 'ART', vida_obligatorio: 'Vida obligatorio', accidentes_personales: 'Accidentes personales' };
@@ -72,8 +75,44 @@ export async function pantallaInicio(cont, ctx) {
     if (ctx.perfil.rol === 'administrador') for (const u of r.usuariosInactivos) pendientes.push([`Activar o asignar rol al usuario ${u.email}`, '#/usuarios']);
 
     const activos = (r.contratos ?? []).filter((c) => !['finalizado', 'rescindido'].includes(c.estado));
+    // Panel de cifras
+    const C = (x) => aCentavos(x ?? 0);
+    const veCostos = ['administrador', 'contador'].includes(ctx.perfil.rol);
+    const en7 = new Date(Date.parse(`${hoy}T00:00:00Z`) + 7 * 86400000).toISOString().slice(0, 10);
+    const en30 = new Date(Date.parse(`${hoy}T00:00:00Z`) + 30 * 86400000).toISOString().slice(0, 10);
+    const cobrar = (r.comprobantes ?? []).filter((x) => x.clase !== 'nota_credito' && C(x.saldo) > 0);
+    const vencidasV = cobrar.filter((x) => x.vencimiento && x.vencimiento < hoy);
+    const pagar7 = (r.compras ?? []).filter((x) => x.clase !== 'nota_credito' && C(x.saldo) > 0 && (x.vencimiento ?? hoy) <= en7);
+    const chProp7 = (r.cheques ?? []).filter((x) => x.estado === 'emitido' && x.fecha_pago <= en7);
+    const chTerc = (r.cheques ?? []).filter((x) => x.estado === 'en_cartera');
+    const chVencen = chTerc.filter((x) => { const lim = new Date(Date.parse(`${x.fecha_pago}T00:00:00Z`) + 30 * 86400000).toISOString().slice(0, 10); return lim <= en7 || x.fecha_pago <= hoy; });
+    const polizas30 = (r.polizas ?? []).filter((x) => x.estado === 'vigente' && x.vigencia_hasta && x.vigencia_hasta <= en30);
+    const suma = (l, k) => l.reduce((t, x) => t + C(x[k]), 0);
+    const tarjeta = (titulo, valor, detalle, href, neg) => h('a', { class: 'dato', href, style: { textDecoration: 'none', color: 'inherit' } },
+      h('div', { class: 'dato-titulo' }, titulo), h('div', { class: `dato-valor ${neg ? 'negativo' : ''}` }, valor), detalle ? h('div', { class: 'dato-detalle' }, detalle) : null);
+    const panel = h('div', { class: 'panel-cifras' },
+      tarjeta('Cajas y bancos', cent(suma(r.saldosCuentas ?? [], 'saldo')), `${(r.saldosCuentas ?? []).length} cuenta(s)`, '#/tesoreria/cuentas'),
+      tarjeta('Facturas por cobrar', cent(suma(cobrar, 'saldo')), vencidasV.length ? `${vencidasV.length} vencida(s): ${cent(suma(vencidasV, 'saldo'))}` : 'Ninguna vencida', '#/ventas/comprobantes', vencidasV.length > 0),
+      tarjeta('Certificados sin aprobar', String((r.presentados ?? []).length), (r.presentados ?? []).length ? `Presentados por ${cent(suma(r.presentados, 'bruto'))}` : 'Nada pendiente', '#/contratos'),
+      tarjeta('Pagos próximos 7 días', cent(suma(pagar7, 'saldo') + suma(chProp7, 'importe')), `${pagar7.length} factura(s) y ${chProp7.length} cheque(s) propio(s)`, '#/compras/vencimientos'),
+      tarjeta('Cheques en cartera', cent(suma(chTerc, 'importe')), chVencen.length ? `${chVencen.length} para depositar ya o por vencer` : 'Ninguno por vencer', '#/tesoreria/cheques', chVencen.length > 0),
+      tarjeta('Pólizas por vencer', String(polizas30.length), polizas30.length ? 'En los próximos 30 días' : 'Ninguna en 30 días', '#/contratos', polizas30.length > 0));
+    const zonaMargen = h('div', {}, veCostos ? h('p', { class: 'texto-suave' }, 'Calculando el margen de los contratos…') : null);
+    if (veCostos) {
+      margenContratos(hoy).then((ms) => vaciar(zonaMargen, ms.length ? h('div', { class: 'tabla-scroll' }, h('table', { class: 'tabla' },
+        h('thead', {}, h('tr', {}, ['Contrato', 'Ingreso certificado', 'Costo real', 'Margen', 'Margen %'].map((t, i) => h('th', { class: i ? 'num' : null }, t)))),
+        h('tbody', {}, ms.map((m) => h('tr', {}, h('td', {}, h('a', { href: '#/reportes/rentabilidad' }, `${m.contrato.codigo} · ${m.contrato.descripcion}`)),
+          h('td', { class: 'num' }, cent(m.ingreso)), h('td', { class: 'num' }, cent(m.costo_real)),
+          h('td', { class: `num ${m.margen < 0 ? 'texto-negativo' : ''}` }, h('strong', {}, cent(m.margen))),
+          h('td', { class: 'num' }, m.margen_pct === null ? '—' : `${String(m.margen_pct).replace('.', ',')} %`)))))) : h('p', { class: 'texto-suave' }, 'No hay contratos activos.')))
+        .catch((err) => vaciar(zonaMargen, h('p', { class: 'texto-suave' }, `No se pudo calcular el margen: ${err.message}`)));
+    }
+
     vaciar(cont,
       encabezado(`Hola, ${ctx.perfil.nombre || ctx.perfil.email}`, `${e.nombre_fantasia ?? 'MADEWORK'} · Sistema iniciado el ${fechaAR(e.fecha_inicio_sistema)}`),
+      ['administrador', 'contador', 'consulta'].includes(ctx.perfil.rol) ? panel : null,
+      veCostos ? h('section', { class: 'tarjeta' }, h('h2', {}, 'Margen real de los contratos activos'), zonaMargen,
+        h('p', { class: 'campo-ayuda' }, 'Desde el inicio hasta hoy: certificados aprobados menos el costo real (compras, personal, equipos, materiales e indirectos).')) : null,
       alertas.length ? h('section', { class: 'tarjeta tarjeta-alerta' }, h('h2', {}, 'Atención'),
         h('ul', { class: 'lista-tareas' }, alertas.map(([t, href, tipo]) => h('li', {}, etiqueta(tipo === 'peligro' ? 'Urgente' : 'Aviso', tipo), ' ', h('a', { href }, t))))) : null,
       activos.length ? h('section', { class: 'tarjeta' }, h('h2', {}, 'Contratos activos'),
@@ -95,7 +134,7 @@ export async function pantallaInicio(cont, ctx) {
             [['Base, usuarios, parámetros fiscales e IVA', 1], ['Contratos y certificados', 2], ['Ventas y cobranzas', 3],
              ['Compras y pagos', 4], ['Tesorería y cheques', 5], ['Contabilidad', 6], ['Costos de obra', 7],
              ['Reportes', 8], ['Manual y puesta en marcha', 9]].map(([t, n]) =>
-              h('li', { class: n <= 7 ? 'hecho' : '' }, t, n <= 7 ? etiqueta('En uso', 'ok') : etiqueta(`Etapa ${n}`)))))),
+              h('li', { class: n <= 8 ? 'hecho' : '' }, t, n <= 8 ? etiqueta('En uso', 'ok') : etiqueta(`Etapa ${n}`)))))),
     );
   });
 }

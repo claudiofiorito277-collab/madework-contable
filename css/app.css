@@ -247,3 +247,10 @@ details.tarjeta summary { cursor: pointer; }
 .linea-parte .campo-chico { flex: 0 1 90px; }
 .linea-parte select, .linea-parte input { width: 100%; }
 .costo-parte { display: flex; gap: 1rem; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+
+/* ---------- Reportes (Etapa 8) ---------- */
+.botones-exportar { display: inline-flex; gap: .4rem; flex-wrap: wrap; }
+.panel-cifras { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: .75rem; margin-bottom: 1rem; }
+.panel-cifras .dato a { color: inherit; text-decoration: none; }
+.panel-cifras .dato-valor.negativo, .texto-negativo { color: #b42318; }
+.nota-borrador { border-left: 4px solid #b54708; background: #fffaeb; padding: .6rem .8rem; border-radius: var(--radio); margin-bottom: .8rem; }

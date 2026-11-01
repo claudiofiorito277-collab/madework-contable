@@ -84,7 +84,7 @@ export const auditoria = {
 // ---------- Panel de inicio ----------
 export const resumen = {
   async pendientes() {
-    const [emp, params, perfs, contratosV, pols, porFacturar, comprobantes, compras, cheques, contables] = await Promise.all([
+    const [emp, params, perfs, contratosV, pols, porFacturar, comprobantes, compras, cheques, contables, saldosCuentas, presentados] = await Promise.all([
       empresa.obtener(),
       q(sb.from('parametros_fiscales').select('codigo, descripcion').eq('a_confirmar', true).is('vigente_hasta', null)),
       q(sb.from('perfiles').select('email, activo')),
@@ -95,9 +95,11 @@ export const resumen = {
       q(sb.from('v_comprobantes_compra').select('id, clase, revisado, saldo, vencimiento, numero_formateado, proveedor').eq('estado', 'emitido')),
       q(sb.from('v_cheques').select('id, tipo, estado, numero, fecha_pago, importe, cliente, proveedor').in('estado', ['en_cartera', 'emitido'])),
       q(sb.from('v_pendientes_contabilizar').select('origen_tabla, fecha')),
+      q(sb.from('v_saldos_cuentas').select('id, nombre, tipo, saldo')),
+      q(sb.from('certificados').select('id, numero, contrato_id, bruto, fecha_presentacion, estado').in('estado', ['presentado', 'observado'])),
     ]);
     return { empresa: emp, parametrosAConfirmar: params, usuariosInactivos: perfs.filter((p) => !p.activo), contratos: contratosV, polizas: pols,
-      porFacturar, comprobantes, compras, cheques, contables };
+      porFacturar, comprobantes, compras, cheques, contables, saldosCuentas, presentados };
   },
 };
 

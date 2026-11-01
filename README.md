@@ -2,7 +2,7 @@
 
 Sistema para los trabajos con Caminos de las Sierras. Separado de cualquier otro sistema de MADEWORK.
 
-**Estado:** Etapa 7 de 9 · costos de obra (sobre las Etapas 1 a 6: base, contratos y certificados, ventas y cobranzas, compras y pagos, tesorería, contabilidad).
+**Estado:** Etapa 8 de 9 · panel, reportes y exportaciones (sobre las Etapas 1 a 7: base, contratos y certificados, ventas y cobranzas, compras y pagos, tesorería, contabilidad, costos de obra).
 
 ---
 
@@ -506,6 +506,99 @@ Dentro del contrato, el indirecto se reparte entre los ítems según su costo di
 - 25 pruebas de pantallas con el **criterio de aceptación**: una semana de partes (3 personas, hidroelevador 8 h por día, 60 columnas) y consumos de pintura (120 l). El costo real del ítem "Pintura de columnas" da **$ 3.395.000** y el **costo por columna, $ 56.583,33**, contra un precio de $ 172.670. Además: la factura de pintura que entró al stock no se cuenta dos veces, el stock queda en 0 en el obrador, el operador carga un parte desde el celular sin ver costos ni datos personales, y con el mes cerrado el parte se rechaza.
 - Se volvieron a correr las pruebas de pantallas de las Etapas 2 a 6: sin cambios.
 
+## Etapa 8 · Panel, reportes y exportaciones
+
+Un **panel en el Inicio** con las cifras del día y el margen real de cada contrato. Un menú nuevo, **Reportes**, con rentabilidad por contrato e ítem, costo por unidad de trabajo, IVA Ventas e IVA Compras (con el **Libro IVA Digital en borrador**), retenciones y percepciones, y saldos y vencimientos. Además, **cada reporte y cada libro contable se descarga en Excel y en PDF**, con los filtros aplicados, la fecha de generación y el usuario.
+
+Esta etapa **no tiene migración SQL**: solo cambia el programa.
+
+### Instalación
+
+1. Subir a GitHub las carpetas `css`, `js`, `sql` y `tests`, y los archivos `index.html`, `README.md` y `package.json`.
+2. En el navegador, recargar con **Ctrl + F5**.
+
+Si todavía no se instalaron las Etapas 6 y 7, antes hay que correr `sql/006_contabilidad.sql` y `sql/007_costos.sql`, en ese orden.
+
+### Panel de inicio
+
+Arriba de los avisos, seis cifras que llevan a su pantalla con un clic:
+
+- **Cajas y bancos:** saldo total de todas las cuentas.
+- **Facturas por cobrar:** saldo pendiente y cuánto está vencido.
+- **Certificados sin aprobar:** presentados u observados, y por cuánto.
+- **Pagos de los próximos 7 días:** facturas de proveedores y cheques propios a debitar.
+- **Cheques en cartera:** y cuántos ya se pueden depositar o están por vencer.
+- **Pólizas por vencer** en los próximos 30 días.
+
+Debajo, **Margen real de los contratos activos** (solo administrador y contador): por contrato, el ingreso certificado, el costo real y el margen, desde el inicio hasta hoy.
+
+### Reportes
+
+#### Rentabilidad y costo por unidad
+
+Filtros por **cliente, ruta, tipo de trabajo, contrato y período**. Para cada ítem se ve:
+
+- **Ingreso certificado:** certificados aprobados, facturados o cobrados, por fecha de aprobación.
+- **Costo presupuestado:** el costo unitario cargado en el contrato × lo producido según los partes.
+- **Costo real:** compras imputadas + personal + equipos + materiales + indirectos (de la Etapa 7).
+- **Desvío** (real − presupuestado) y **margen** (ingreso − costo real), en pesos y en %.
+- **Costo por unidad de trabajo:** por columna, por m², por km, según la unidad del ítem.
+
+El Excel trae además la composición del costo real por ítem.
+
+El filtro por **tramo** queda A CONFIRMAR: hoy los partes y las compras se cargan por contrato e ítem, no por tramo.
+
+#### IVA Ventas e IVA Compras
+
+Por período (por defecto, el mes en curso), con:
+
+- Cada comprobante con neto gravado, IVA, exento, no gravado, otros tributos y total. Las notas de crédito restan.
+- En compras, además: **crédito fiscal computable**, IVA no computable (va al costo), percepciones de IVA, de IIBB y otras.
+- Resumen **por alícuota** y **por tratamiento**.
+
+**Libro IVA Digital (borrador):** descarga un `.zip` con los cuatro archivos de ancho fijo del régimen de información de compras y ventas (comprobantes y alícuotas de ventas y de compras) y un archivo `LEEME_BORRADOR.txt`. **Es un borrador: revisarlo con el contador antes de presentarlo en ARCA.**
+
+#### Retenciones y percepciones
+
+Por período: las **retenciones sufridas** en las cobranzas (con su número de certificado) y las **percepciones sufridas** en las compras, con un resumen por tipo para que el contador las compute.
+
+#### Saldos y vencimientos
+
+A una fecha de corte, lo **a cobrar** de cada cliente y lo **a pagar** a cada proveedor, por antigüedad: a vencer, 1 a 30, 31 a 60, 61 a 90 y más de 90 días. El Excel incluye el detalle de cada comprobante con sus días de atraso.
+
+#### Otros reportes
+
+Accesos a los libros contables (diario, mayor, sumas y saldos, estado de resultados y situación patrimonial), el flujo de fondos, la cuenta corriente de clientes, los vencimientos a pagar y el costo por ítem.
+
+### Exportar a Excel y PDF
+
+Cada reporte tiene los botones **Excel** y **PDF**. También los tienen los cinco libros contables y el flujo de fondos (reemplazan al botón Imprimir).
+
+- El archivo sale **con los filtros que están en pantalla**, la **fecha y hora de generación** y el **usuario** que lo generó.
+- En el **Excel** los importes quedan como números (se pueden sumar y filtrar) y cada parte del reporte va en una hoja.
+- El **PDF** sale en A4 (apaisado cuando hay muchas columnas), con el encabezado de la tabla repetido en cada hoja y "Página x de y".
+
+**Contabilidad y costos no dan lo mismo, y está bien:** el estado de resultados muestra lo contabilizado (facturas y compras), mientras que el costo real de la obra suma además los partes de personal y equipos y valúa la pintura por lo consumido.
+
+### Quién ve qué
+
+- **Administrador y contador:** todo, incluido el margen de los contratos.
+- **Consulta:** el panel y los reportes, sin el costo de personal y equipos.
+- **Operador:** no ve el menú Reportes ni el margen.
+
+### A confirmar con el contador (Etapa 8)
+
+- **Libro IVA Digital:** códigos de comprobante, tratamiento de exentos y no gravados, percepciones y crédito fiscal computable antes de presentar.
+- **Costo presupuestado:** si se compara contra lo producido (como ahora) o contra lo certificado.
+- Filtro de rentabilidad **por tramo** (requiere cargar el tramo en partes y compras).
+
+### Pruebas (Etapa 8)
+
+- 141 pruebas de cálculo (9 nuevas: IVA Ventas y Compras con notas de crédito y anulados, largo fijo y campos del Libro IVA Digital, retenciones y percepciones, antigüedad de saldos, rentabilidad por ítem, formatos y archivos Excel y PDF válidos).
+- 320 pruebas de base de datos (Etapas 1 a 7, sin cambios).
+- 30 pruebas de pantallas con el **criterio de aceptación**: el panel muestra el margen real del contrato DEMO (**$ 6.965.200, 67,2 %**: $ 10.360.200 certificados menos $ 3.395.000 de costo real); el **IVA Compras del mes se descarga en Excel** y se abre con sus filtros, usuario, dos comprobantes, el crédito fiscal de $ 430.500 y los importes como números; el **estado de resultados se descarga en PDF** con el mismo resultado que la pantalla. También: Libro IVA Digital con los cuatro archivos de largo correcto, IVA Ventas, retenciones, saldos, sumas y saldos, libro diario y flujo de fondos exportados, y el operador sin acceso a reportes.
+- Se volvieron a correr las pruebas de pantallas de las Etapas 2 a 7: sin cambios.
+
 ---
 
 ## Pruebas automáticas
@@ -513,7 +606,7 @@ Dentro del contrato, el indirecto se reparte entre los ítems según su costo di
 Requieren [Node.js](https://nodejs.org) 20 o superior.
 
 ```
-npm test            # 132 pruebas: IVA, redondeo, vigencias, CUIT, certificados, ventas, compras, tesorería, contabilidad, costos
+npm test            # 141 pruebas: IVA, redondeo, vigencias, CUIT, certificados, ventas, compras, tesorería, contabilidad, costos, reportes y exportación
 npm install         # una vez, para la prueba de base de datos
 npm run test:sql    # 320 pruebas: migraciones 001 a 007, permisos, auditoría, certificados, ventas, compras, tesorería, contabilidad, costos
 ```
@@ -527,7 +620,7 @@ index.html            Entrada
 css/app.css           Estilos (computadora y celular)
 js/config.js          Conexión a Supabase (completar)
 js/app.js             Arranque, sesión y navegación
-js/core/              Lógica pura (IVA, redondeo, vigencias, CUIT, certificados, ventas, compras, tesorería, asientos, costos), con pruebas
+js/core/              Lógica pura (IVA, redondeo, vigencias, CUIT, certificados, ventas, compras, tesorería, asientos, costos, reportes, exportación a Excel y PDF), con pruebas
 js/data/              Única capa que habla con Supabase
 js/ui/                Pantallas
 sql/001_base.sql      Migración de la Etapa 1
@@ -562,3 +655,4 @@ tests/                Pruebas automáticas
 - Cuentas de la configuración de imputaciones contables.
 - Ajuste por inflación contable (no se calcula).
 - Costo por persona y por equipo, y reglas de prorrateo de indirectos.
+- Libro IVA Digital (los archivos que genera el sistema son un borrador).

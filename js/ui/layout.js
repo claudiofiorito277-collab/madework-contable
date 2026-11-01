@@ -19,7 +19,7 @@ export const MENU = [
     { ruta: 'tesoreria', texto: 'Tesorería y cheques', roles: ['administrador', 'contador', 'consulta'] },
     { ruta: 'contabilidad', texto: 'Contabilidad', roles: ['administrador', 'contador', 'consulta'] },
     { ruta: 'costos', texto: 'Costos de obra' },
-    { texto: 'Reportes', etapa: 8 },
+    { ruta: 'reportes', texto: 'Reportes', roles: ['administrador', 'contador', 'consulta'] },
   ] },
   { grupo: 'Configuración', items: [
     { ruta: 'empresa', texto: 'Empresa' },

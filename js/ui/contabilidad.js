@@ -6,6 +6,7 @@ import { contabilidad, contratos as repoContratos } from '../data/repos.js';
 import { contabilizarPendientes, regenerar, armarAsiento, configuracion } from '../data/contabilizar.js';
 import { aCentavos } from '../core/redondeo.js';
 import { CLAVES, sumasYSaldos, mayor, estadoResultados, situacionPatrimonial, compararCodigo } from '../core/asientos.js';
+import { botonesExportar, col, periodoTexto } from './exportar.js';
 
 const PESTAÑAS = [['pendientes', 'Contabilizar'], ['diario', 'Libro diario'], ['mayor', 'Mayor'], ['sumas', 'Sumas y saldos'],
   ['resultados', 'Resultados'], ['patrimonio', 'Patrimonio'], ['periodos', 'Cierre de meses'], ['config', 'Configuración']];
@@ -115,7 +116,7 @@ const VISTAS = {
         'No hay asientos en el período.'));
     };
     f.d.onchange = pintar; f.h.onchange = pintar;
-    vaciar(cuerpo, h('section', { class: 'tarjeta' }, h('div', { class: 'filtros' }, campo('Desde', f.d), campo('Hasta', f.h), h('button', { class: 'btn', type: 'button', onclick: () => window.print() }, 'Imprimir')), zona));
+    vaciar(cuerpo, h('section', { class: 'tarjeta' }, h('div', { class: 'filtros' }, campo('Desde', f.d), campo('Hasta', f.h), botonesExportar(() => exportarDiario(f.d.value, f.h.value))), zona));
     await pintar();
   },
 
@@ -139,7 +140,7 @@ const VISTAS = {
       h('p', { class: 'campo-ayuda' }, `Saldo en el sentido natural de la cuenta (${['activo', 'egreso'].includes(c.rubro) ? 'deudor' : 'acreedor'}).`));
     };
     fC.onchange = pintar; f.d.onchange = pintar; f.h.onchange = pintar;
-    vaciar(cuerpo, h('section', { class: 'tarjeta' }, h('div', { class: 'filtros' }, campo('Cuenta', fC), campo('Desde', f.d), campo('Hasta', f.h), h('button', { class: 'btn', type: 'button', onclick: () => window.print() }, 'Imprimir')), zona));
+    vaciar(cuerpo, h('section', { class: 'tarjeta' }, h('div', { class: 'filtros' }, campo('Cuenta', fC), campo('Desde', f.d), campo('Hasta', f.h), botonesExportar(() => exportarMayor(plan.find((x) => x.id === fC.value), f.d.value, f.h.value))), zona));
     await pintar();
   },
 
@@ -166,7 +167,7 @@ const VISTAS = {
     };
     for (const x of [f.d, f.h, fK, fN]) x.onchange = pintar;
     vaciar(cuerpo, h('section', { class: 'tarjeta' }, h('div', { class: 'filtros' }, campo('Desde', f.d), campo('Hasta', f.h), campo('Contrato', fK),
-      h('label', { class: 'check' }, fN, ' Mostrar cuentas madre'), h('button', { class: 'btn', type: 'button', onclick: () => window.print() }, 'Imprimir')), zona));
+      h('label', { class: 'check' }, fN, ' Mostrar cuentas madre'), botonesExportar(() => exportarSumas(plan, f.d.value, f.h.value, fK.value, fK.selectedOptions[0]?.text, fN.checked))), zona));
     await pintar();
   },
 
@@ -183,7 +184,7 @@ const VISTAS = {
       const r = estadoResultados(ls, plan, 3);
       const bloque = (titulo, grupos, total) => [h('tr', {}, h('td', { colspan: 2 }, h('strong', {}, titulo))),
         ...grupos.flatMap((g) => [h('tr', {}, h('td', { style: { paddingLeft: '1rem' } }, `${g.codigo} ${g.nombre}`), h('td', { class: 'num' }, cent(g.total))),
-          ...g.cuentas.map((c) => h('tr', { class: 'texto-suave' }, h('td', { style: { paddingLeft: '2.2rem' } }, `${c.codigo} ${c.nombre}`), h('td', { class: 'num' }, h('small', {}, cent(c.saldo)))))]),
+          ...g.cuentas.filter((c) => c.codigo !== g.codigo).map((c) => h('tr', { class: 'texto-suave' }, h('td', { style: { paddingLeft: '2.2rem' } }, `${c.codigo} ${c.nombre}`), h('td', { class: 'num' }, h('small', {}, cent(c.saldo)))))]),
         h('tr', {}, h('td', {}, h('strong', {}, `Total ${titulo.toLowerCase()}`)), h('td', { class: 'num' }, h('strong', {}, cent(total))))];
       vaciar(zona, h('table', { class: 'tabla tabla-totales' }, h('tbody', {},
         bloque('Ingresos', r.ingresos, r.totalIngresos), bloque('Costos y gastos', r.egresos, r.totalEgresos),
@@ -192,7 +193,7 @@ const VISTAS = {
         h('p', { class: 'campo-ayuda' }, 'Ajuste por inflación: no se calcula. A CONFIRMAR CON CONTADOR.'));
     };
     for (const x of [f.d, f.h, fK]) x.onchange = pintar;
-    vaciar(cuerpo, h('section', { class: 'tarjeta' }, h('div', { class: 'filtros' }, campo('Desde', f.d), campo('Hasta', f.h), campo('Contrato', fK), h('button', { class: 'btn', type: 'button', onclick: () => window.print() }, 'Imprimir')), zona));
+    vaciar(cuerpo, h('section', { class: 'tarjeta' }, h('div', { class: 'filtros' }, campo('Desde', f.d), campo('Hasta', f.h), campo('Contrato', fK), botonesExportar(() => exportarResultados(plan, f.d.value, f.h.value, fK.value, fK.selectedOptions[0]?.text))), zona));
     await pintar();
   },
 
@@ -220,7 +221,7 @@ const VISTAS = {
         h('p', { class: 'campo-ayuda' }, `Ejercicio ${ej?.anio ?? '—'}. Ajuste por inflación: no se calcula. A CONFIRMAR CON CONTADOR.`));
     };
     fH.onchange = pintar;
-    vaciar(cuerpo, h('section', { class: 'tarjeta' }, h('div', { class: 'filtros' }, campo('Al', fH), h('button', { class: 'btn', type: 'button', onclick: () => window.print() }, 'Imprimir')), zona));
+    vaciar(cuerpo, h('section', { class: 'tarjeta' }, h('div', { class: 'filtros' }, campo('Al', fH), botonesExportar(() => exportarPatrimonio(plan, fH.value))), zona));
     await pintar();
   },
 
@@ -286,3 +287,56 @@ const VISTAS = {
             onchange: (e) => guardar(() => contabilidad.asignarCuentaTesoreria(t.id, e.target.value)) })))), 'Todavía no hay cajas ni bancos cargados.')));
   },
 };
+
+// ---------------------------------------------------------------- Exportación de los libros (Excel y PDF)
+const lin2 = (l) => ({ ...l, debe: aCentavos(l.debe), haber: aCentavos(l.haber) });
+const AJUSTE = 'Ajuste por inflación: no se calcula. A CONFIRMAR CON CONTADOR.';
+
+async function exportarDiario(desde, hasta) {
+  const [asientos, lineas] = await Promise.all([contabilidad.asientos({ desde, hasta }), contabilidad.lineas({ desde, hasta })]);
+  const por = {}; for (const l of lineas) (por[l.asiento_id] ??= []).push(l);
+  const filas = asientos.flatMap((a) => [[a.numero, a.fecha, `${a.descripcion}${a.estado === 'anulado' ? ` (anulado por el N° ${a.anulado_por_numero})` : ''}`, '', null, null],
+    ...(por[a.id] ?? []).map((l) => ['', '', `   ${l.cuenta_codigo} ${l.cuenta_nombre}`, l.contrato_codigo ?? '', aCentavos(l.debe) || null, aCentavos(l.haber) || null])]);
+  const tD = lineas.reduce((t, l) => t + aCentavos(l.debe), 0); const tH = lineas.reduce((t, l) => t + aCentavos(l.haber), 0);
+  return { titulo: 'Libro diario', filtros: [['Período', periodoTexto(desde, hasta)], ['Asientos', String(asientos.length)]],
+    secciones: [{ columnas: [col('N°', 'numero', 5), col('Fecha', 'fecha', 9), col('Cuenta / descripción', 'texto', 40), col('Contrato', 'texto', 8), col('Debe', 'pesos', 13), col('Haber', 'pesos', 13)],
+      filas, totales: ['', '', 'Totales', '', tD, tH] }] };
+}
+async function exportarMayor(c, desde, hasta) {
+  const movs = (await contabilidad.lineas({ cuentaId: c.id, hasta })).map(lin2);
+  const m = mayor(movs, desde, hasta, c.rubro);
+  return { titulo: `Mayor ${c.codigo} ${c.nombre}`, filtros: [['Cuenta', `${c.codigo} ${c.nombre}`], ['Período', periodoTexto(desde, hasta)]],
+    secciones: [{ columnas: [col('Fecha', 'fecha'), col('Asiento', 'numero', 6), col('Detalle', 'texto', 30), col('Debe', 'pesos'), col('Haber', 'pesos'), col('Saldo', 'pesos')],
+      filas: [[desde, null, 'Saldo anterior', null, null, m.anterior], ...m.lineas.map((l) => [l.fecha, l.numero, `${l.asiento_descripcion}${l.contrato_codigo ? ` · ${l.contrato_codigo}` : ''}`, l.debe || null, l.haber || null, l.saldo])],
+      totales: ['', null, 'Totales del período', m.debe, m.haber, m.saldo] }] };
+}
+async function exportarSumas(plan, desde, hasta, contratoId, contratoTxt, madres) {
+  let ls = (await contabilidad.lineas({ desde, hasta })).map(lin2);
+  if (contratoId) ls = ls.filter((l) => l.contrato_id === contratoId);
+  const b = sumasYSaldos(ls, plan);
+  const filas = madres ? b.filas : b.filas.filter((x) => x.imputable);
+  return { titulo: 'Balance de sumas y saldos', filtros: [['Período', periodoTexto(desde, hasta)], ['Contrato', contratoId ? contratoTxt : 'Todos'], ['Control', b.cuadra ? 'El balance cuadra' : 'El balance NO cuadra']],
+    secciones: [{ columnas: [col('Cuenta', 'texto', 34), col('Debe', 'pesos'), col('Haber', 'pesos'), col('Saldo deudor', 'pesos'), col('Saldo acreedor', 'pesos')],
+      filas: filas.map((x) => [`${'  '.repeat(x.codigo.split('.').length - 1)}${x.codigo} ${x.nombre}`, x.debe, x.haber, x.deudor || null, x.acreedor || null]),
+      totales: ['Totales', b.totales.debe, b.totales.haber, b.totales.deudor, b.totales.acreedor] }] };
+}
+async function exportarResultados(plan, desde, hasta, contratoId, contratoTxt) {
+  let ls = (await contabilidad.lineas({ desde, hasta })).map(lin2).filter((l) => !['refundicion', 'cierre'].includes(l.tipo));
+  if (contratoId) ls = ls.filter((l) => l.contrato_id === contratoId);
+  const r = estadoResultados(ls, plan, 3);
+  const bloque = (titulo, grupos, total) => [[titulo, null], ...grupos.flatMap((g) => [[`  ${g.codigo} ${g.nombre}`, g.total], ...g.cuentas.filter((c) => c.codigo !== g.codigo).map((c) => [`      ${c.codigo} ${c.nombre}`, c.saldo])]), [`Total ${titulo.toLowerCase()}`, total]];
+  return { titulo: 'Estado de resultados', filtros: [['Período', periodoTexto(desde, hasta)], ['Contrato', contratoId ? contratoTxt : 'Toda la empresa']], notas: [AJUSTE],
+    secciones: [{ columnas: [col('Concepto', 'texto', 50), col('Importe', 'pesos', 16)],
+      filas: [...bloque('Ingresos', r.ingresos, r.totalIngresos), ['', null], ...bloque('Costos y gastos', r.egresos, r.totalEgresos)],
+      totales: [r.resultado >= 0 ? 'Ganancia del período' : 'Pérdida del período', r.resultado] }] };
+}
+async function exportarPatrimonio(plan, al) {
+  const ej = (await contabilidad.ejercicios()).find((e) => e.desde <= al && e.hasta >= al);
+  const ls = (await contabilidad.lineas({ desde: ej?.desde, hasta: al })).map(lin2).filter((l) => !['refundicion', 'cierre'].includes(l.tipo));
+  const s = situacionPatrimonial(ls, plan, 3);
+  const sec = (titulo, grupos, extra, total) => ({ titulo, columnas: [col('Rubro', 'texto', 50), col('Importe', 'pesos', 16)],
+    filas: [...grupos.map((g) => [`${g.codigo} ${g.nombre}`, g.total]), ...(extra ? [extra] : [])], totales: [`Total ${titulo.toLowerCase()}`, total] });
+  return { titulo: `Situación patrimonial al ${fechaAR(al)}`, filtros: [['Ejercicio', String(ej?.anio ?? '—')], ['Control', s.cuadra ? 'Activo = Pasivo + Patrimonio neto' : 'No cuadra']], notas: [AJUSTE],
+    secciones: [sec('Activo', s.activo, null, s.totalActivo), sec('Pasivo', s.pasivo, null, s.totalPasivo),
+      sec('Patrimonio neto', s.patrimonio, ['Resultado del período (no cerrado)', s.resultadoPeriodo], s.totalPatrimonio)] };
+}

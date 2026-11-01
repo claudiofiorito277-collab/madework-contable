@@ -26,6 +26,8 @@ import { pantallaTesoreria } from './ui/tesoreria.js';
 import { pantallaContabilidad } from './ui/contabilidad.js';
 import { pantallaAsiento, pantallaNuevoAsiento } from './ui/asiento.js';
 import { pantallaCostos } from './ui/costos.js';
+import { pantallaReportes } from './ui/reportes.js';
+import { sesionExport } from './ui/exportar.js';
 import { pantallaParte, pantallaNuevoParte } from './ui/parte.js';
 
 const PANTALLAS = {
@@ -34,7 +36,7 @@ const PANTALLAS = {
   proveedores: pantallaProveedores, compras: pantallaCompras, compra: pantallaCompra, 'nueva-compra': pantallaNuevaCompra,
   pago: pantallaPago, 'nuevo-pago': pantallaNuevoPago, tesoreria: pantallaTesoreria,
   contabilidad: pantallaContabilidad, asiento: pantallaAsiento, 'nuevo-asiento': pantallaNuevoAsiento,
-  costos: pantallaCostos, parte: pantallaParte, 'nuevo-parte': pantallaNuevoParte,
+  costos: pantallaCostos, reportes: pantallaReportes, parte: pantallaParte, 'nuevo-parte': pantallaNuevoParte,
   inicio: pantallaInicio, empresa: pantallaEmpresa, parametros: pantallaParametros, plan: pantallaPlan,
   centros: pantallaCentros, usuarios: pantallaUsuarios, auditoria: pantallaAuditoria,
   clientes: pantallaClientes, contratos: pantallaContratos, contrato: pantallaContrato, certificado: pantallaCertificado,
@@ -85,6 +87,7 @@ async function alCambiarSesion(s) {
       return;
     }
     perfil = p;
+    sesionExport.usuario = p.nombre ? `${p.nombre} (${p.email})` : p.email;
     // Si la dirección quedó en una sección que este rol no ve, arrancar en Inicio.
     const item = MENU.flatMap((g) => g.items).find((i) => i.ruta === rutaActual());
     if (item && !puedeVer(item, perfil.rol)) history.replaceState(null, '', '#/inicio');

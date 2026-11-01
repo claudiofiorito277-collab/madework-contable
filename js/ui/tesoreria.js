@@ -2,6 +2,7 @@
 // conciliación bancaria con extractos y flujo de fondos.
 import { h, vaciar, pantalla, campo, select, modal, aviso, error, etiqueta, fechaAR, pesos, cent, hoyISO, leerPesos, cargando } from './dom.js';
 import { encabezado } from './layout.js';
+import { botonesExportar, col, periodoTexto } from './exportar.js';
 import { tesoreria, ventas, compras } from '../data/repos.js';
 import { aCentavos } from '../core/redondeo.js';
 import {
@@ -422,6 +423,7 @@ const VISTAS = {
     const fH = h('input', { type: 'date', value: sumarDias(hoy, 70), 'aria-label': 'Hasta' });
     const zona = h('div');
     const [cuentas, movs, cvs, ccs, chs] = await Promise.all([tesoreria.cuentas(), tesoreria.movimientos(), ventas.comprobantes(), compras.comprobantes(), tesoreria.cheques()]);
+    let ultimo = null;
     const pintar = () => {
       const cobrar = [
         ...cvs.filter((c) => c.estado === 'emitido' && c.clase !== 'nota_credito' && aCentavos(c.saldo) > 0).map((c) => ({ fecha: c.vencimiento ?? c.fecha, importe: aCentavos(c.saldo), origen: 'Facturas a cobrar' })),
@@ -434,6 +436,7 @@ const VISTAS = {
       const f = flujoFondos({ movimientos: movs.map((m) => ({ ...m, importe: aCentavos(m.importe) })), cobrar, pagar,
         saldoInicial: cuentas.reduce((s, c) => s + aCentavos(c.saldo_inicial), 0) }, { desde: fD.value, hasta: fH.value, hoy, agrupar: fAg.value });
       const etq = (k) => (fAg.value === 'mes' ? new Date(`${k}-01T12:00:00Z`).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' }) : `Semana del ${fechaAR(k)}`);
+      ultimo = { f, etq };
       const max = Math.max(1, ...f.periodos.map((p) => Math.abs(p.saldoProyectado)));
       vaciar(zona,
         h('p', { class: 'texto-suave' }, `Saldo al inicio del período: ${cent(f.saldoInicial)}. Lo real son los movimientos de caja y bancos; lo proyectado suma facturas y cheques por cobrar y resta facturas y cheques propios por pagar, según su vencimiento. Lo atrasado se cuenta en la semana de hoy.`),
@@ -448,7 +451,10 @@ const VISTAS = {
     };
     fAg.onchange = pintar; fD.onchange = pintar; fH.onchange = pintar;
     vaciar(cuerpo, h('section', { class: 'tarjeta' }, h('div', { class: 'filtros' }, campo('Agrupar', fAg), campo('Desde', fD), campo('Hasta', fH),
-      h('button', { class: 'btn', type: 'button', onclick: () => window.print() }, 'Imprimir')), zona));
+      botonesExportar(() => ({ titulo: 'Flujo de fondos', filtros: [['Período', periodoTexto(fD.value, fH.value)], ['Agrupado', fAg.value === 'mes' ? 'Por mes' : 'Por semana']],
+        notas: [`Saldo al inicio del período: ${cent(ultimo.f.saldoInicial)}. Lo proyectado suma facturas y cheques por cobrar y resta facturas y cheques propios por pagar, según su vencimiento.`],
+        secciones: [{ columnas: [col('Período', 'texto', 22), col('Ingresos', 'pesos'), col('Egresos', 'pesos'), col('Saldo real', 'pesos'), col('A cobrar', 'pesos'), col('A pagar', 'pesos'), col('Saldo proyectado', 'pesos')],
+          filas: ultimo.f.periodos.map((p) => [ultimo.etq(p.clave), p.ingresos || null, p.egresos || null, p.saldo, p.cobrar || null, p.pagar || null, p.saldoProyectado]) }] }))), zona));
     pintar();
   },
 };

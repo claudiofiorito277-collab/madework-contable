@@ -15,6 +15,9 @@ export function mensajeError(err) {
   if (/permission denied|row-level security/i.test(m)) return 'No tenés permiso para hacer esto.';
   if (/parametros_sin_superposicion/i.test(m)) return 'Esa vigencia se superpone con otra existente.';
   if (/empresa_cuit_check/i.test(m)) return 'El CUIT no es válido: revisá el dígito verificador.';
+  if (/comprobantes_venta_numero/i.test(m)) return 'Ya hay un comprobante registrado con ese tipo, punto de venta y número.';
+  if (/comprobantes_venta_certificado/i.test(m)) return 'Ese certificado ya tiene una factura registrada.';
+  if (/cobranza_medios_cuit_librador_check|clientes_cuit_check/i.test(m)) return 'El CUIT no es válido: revisá el dígito verificador.';
   if (/duplicate key/i.test(m)) return 'Ya existe un registro con ese código.';
   if (/Failed to fetch|NetworkError/i.test(m)) return 'No hay conexión con el servidor. Revisá internet o la configuración de Supabase.';
   return m; // los mensajes de la base ya vienen en castellano

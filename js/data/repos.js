@@ -84,14 +84,18 @@ export const auditoria = {
 // ---------- Panel de inicio ----------
 export const resumen = {
   async pendientes() {
-    const [emp, params, perfs, contratosV, pols] = await Promise.all([
+    const [emp, params, perfs, contratosV, pols, porFacturar, comprobantes, compras] = await Promise.all([
       empresa.obtener(),
       q(sb.from('parametros_fiscales').select('codigo, descripcion').eq('a_confirmar', true).is('vigente_hasta', null)),
       q(sb.from('perfiles').select('email, activo')),
       q(sb.from('v_contratos').select('id, codigo, descripcion, estado, fecha_fin_prevista, unidades_por_certificar, monto_contractual, certificado_bruto').eq('activo', true)),
       q(sb.from('polizas').select('id, tipo, aseguradora, vigencia_hasta, contrato_id, estado').in('estado', ['vigente', 'solicitada'])),
+      q(sb.from('certificados').select('id, numero, contrato_id').eq('estado', 'aprobado')),
+      q(sb.from('v_comprobantes_venta').select('id, clase, cae, saldo, vencimiento, numero_formateado, cliente').eq('estado', 'emitido')),
+      q(sb.from('v_comprobantes_compra').select('id, clase, revisado, saldo, vencimiento, numero_formateado, proveedor').eq('estado', 'emitido')),
     ]);
-    return { empresa: emp, parametrosAConfirmar: params, usuariosInactivos: perfs.filter((p) => !p.activo), contratos: contratosV, polizas: pols };
+    return { empresa: emp, parametrosAConfirmar: params, usuariosInactivos: perfs.filter((p) => !p.activo), contratos: contratosV, polizas: pols,
+      porFacturar, comprobantes, compras };
   },
 };
 
@@ -190,4 +194,118 @@ export const adjuntos = {
     if (error) throw new Error(error.message);
     return data.signedUrl;
   },
+};
+
+// ---------- Ventas y cobranzas (Etapa 3) ----------
+// Altas, anulaciones y cambios pasan por funciones de la base: cada operación se
+// guarda completa o no se guarda.
+export const ventas = {
+  async comprobantes({ clienteId, contratoId, desde, hasta } = {}) {
+    let c = sb.from('v_comprobantes_venta').select('*').order('fecha', { ascending: false }).order('numero', { ascending: false });
+    if (clienteId) c = c.eq('cliente_id', clienteId);
+    if (contratoId) c = c.eq('contrato_id', contratoId);
+    if (desde) c = c.gte('fecha', desde);
+    if (hasta) c = c.lte('fecha', hasta);
+    return q(c);
+  },
+  async comprobante(id) { return q(sb.from('v_comprobantes_venta').select('*').eq('id', id).maybeSingle()); },
+  async alicuotas(id) { return q(sb.from('comprobante_venta_alicuotas').select('*').eq('comprobante_id', id).order('alicuota')); },
+  async asociados(id) { return q(sb.from('v_comprobantes_venta').select('*').eq('comprobante_asociado_id', id).order('fecha')); },
+  async registrarComprobante(datos) { return q(sb.rpc('fn_registrar_comprobante_venta', { p: datos })); },
+  async actualizarComprobante(id, cambios) { return q(sb.rpc('fn_actualizar_comprobante_venta', { p_id: id, p: cambios })); },
+  async anularComprobante(id, motivo) { return q(sb.rpc('fn_anular_comprobante_venta', { p_id: id, p_motivo: motivo })); },
+
+  /** Certificados aprobados que todavía no tienen factura. */
+  async certificadosPorFacturar() {
+    return q(sb.from('certificados').select('*, contratos(id, codigo, descripcion, cliente_id, alicuota_iva, clientes(razon_social))')
+      .eq('estado', 'aprobado').order('fecha_aprobacion', { ascending: true }));
+  },
+
+  async cobranzas({ clienteId } = {}) {
+    let c = sb.from('v_cobranzas').select('*').order('numero', { ascending: false });
+    if (clienteId) c = c.eq('cliente_id', clienteId);
+    return q(c);
+  },
+  async cobranza(id) {
+    const [cab, medios, rets, apl, fr] = await Promise.all([
+      q(sb.from('v_cobranzas').select('*').eq('id', id).maybeSingle()),
+      q(sb.from('cobranza_medios').select('*').eq('cobranza_id', id)),
+      q(sb.from('v_retenciones_sufridas').select('*').eq('cobranza_id', id)),
+      q(sb.from('aplicaciones_cobro').select('*, comprobantes_venta(id, tipo_codigo, punto_venta, numero, fecha, total, letra, clase)').eq('cobranza_id', id)),
+      q(sb.from('fondo_reparo_movimientos').select('*, contratos(codigo, descripcion)').eq('cobranza_id', id)),
+    ]);
+    return cab ? { ...cab, medios, retenciones: rets, aplicaciones: apl, fondoReparo: fr } : null;
+  },
+  /** Aplicaciones de cobranzas vigentes a un comprobante. */
+  async aplicacionesDe(comprobanteId) {
+    return q(sb.from('aplicaciones_cobro').select('*, cobranzas!inner(id, numero, fecha, estado)')
+      .eq('comprobante_id', comprobanteId).eq('cobranzas.estado', 'registrada'));
+  },
+  async registrarCobranza(datos) { return q(sb.rpc('fn_registrar_cobranza', { p: datos })); },
+  async anularCobranza(id, motivo) { return q(sb.rpc('fn_anular_cobranza', { p_id: id, p_motivo: motivo })); },
+  async actualizarCobranza(id, observacion) { return q(sb.rpc('fn_actualizar_cobranza', { p_id: id, p_observacion: observacion })); },
+
+  async fondoReparo() { return q(sb.from('v_fondo_reparo').select('*').order('codigo')); },
+  async movimientosFondoReparo(contratoId) {
+    return q(sb.from('fondo_reparo_movimientos').select('*, cobranzas!inner(numero, fecha, estado)')
+      .eq('contrato_id', contratoId).eq('cobranzas.estado', 'registrada'));
+  },
+  async retenciones({ desde, hasta, tipo } = {}) {
+    let c = sb.from('v_retenciones_sufridas').select('*').eq('estado_cobranza', 'registrada').order('fecha', { ascending: false });
+    if (desde) c = c.gte('fecha', desde);
+    if (hasta) c = c.lte('fecha', hasta);
+    if (tipo) c = c.eq('tipo', tipo);
+    return q(c);
+  },
+};
+
+// ---------- Compras y pagos (Etapa 4) ----------
+export const proveedores = {
+  async listar() { return q(sb.from('proveedores').select('*').order('razon_social')); },
+  async crear(p) { return q(sb.from('proveedores').insert(p).select()); },
+  async actualizar(id, cambios) { return qActualizar(sb.from('proveedores').update(cambios).eq('id', id).select()); },
+};
+
+export const compras = {
+  async comprobantes({ proveedorId } = {}) {
+    let c = sb.from('v_comprobantes_compra').select('*').order('fecha', { ascending: false }).order('numero', { ascending: false });
+    if (proveedorId) c = c.eq('proveedor_id', proveedorId);
+    return q(c);
+  },
+  async comprobante(id) { return q(sb.from('v_comprobantes_compra').select('*').eq('id', id).maybeSingle()); },
+  async detalle(id) {
+    const [alicuotas, percepciones, imputaciones, asociados, pagos] = await Promise.all([
+      q(sb.from('comprobante_compra_alicuotas').select('*').eq('comprobante_id', id)),
+      q(sb.from('comprobante_compra_percepciones').select('*').eq('comprobante_id', id)),
+      q(sb.from('v_costos_imputados').select('*').eq('comprobante_id', id)),
+      q(sb.from('v_comprobantes_compra').select('*').eq('comprobante_asociado_id', id).order('fecha')),
+      q(sb.from('pago_aplicaciones').select('*, pagos!inner(id, numero, fecha, estado)').eq('comprobante_id', id).eq('pagos.estado', 'registrado')),
+    ]);
+    return { alicuotas, percepciones, imputaciones, asociados, pagos };
+  },
+  async registrar(datos) { return q(sb.rpc('fn_registrar_comprobante_compra', { p: datos })); },
+  async actualizar(id, cambios) { return q(sb.rpc('fn_actualizar_comprobante_compra', { p_id: id, p: cambios })); },
+  async anular(id, motivo) { return q(sb.rpc('fn_anular_comprobante_compra', { p_id: id, p_motivo: motivo })); },
+
+  async pagos({ proveedorId } = {}) {
+    let c = sb.from('v_pagos').select('*').order('numero', { ascending: false });
+    if (proveedorId) c = c.eq('proveedor_id', proveedorId);
+    return q(c);
+  },
+  async pago(id) {
+    const [cab, medios, retenciones, aplicaciones] = await Promise.all([
+      q(sb.from('v_pagos').select('*').eq('id', id).maybeSingle()),
+      q(sb.from('pago_medios').select('*').eq('pago_id', id)),
+      q(sb.from('retenciones_practicadas').select('*').eq('pago_id', id)),
+      q(sb.from('pago_aplicaciones').select('*, comprobantes_compra(id, tipo_codigo, letra, punto_venta, numero, fecha, total)').eq('pago_id', id)),
+    ]);
+    return cab ? { ...cab, medios, retenciones, aplicaciones } : null;
+  },
+  async registrarPago(datos) { return q(sb.rpc('fn_registrar_pago', { p: datos })); },
+  async anularPago(id, motivo) { return q(sb.rpc('fn_anular_pago', { p_id: id, p_motivo: motivo })); },
+  async actualizarPago(id, observacion) { return q(sb.rpc('fn_actualizar_pago', { p_id: id, p_observacion: observacion })); },
+
+  async ordenes() { return q(sb.from('ordenes_compra').select('*, proveedores(razon_social), contratos(codigo)').order('numero', { ascending: false })); },
+  async crearOrden(o) { return q(sb.from('ordenes_compra').insert(o).select()); },
+  async actualizarOrden(id, cambios) { return qActualizar(sb.from('ordenes_compra').update(cambios).eq('id', id).select()); },
 };

@@ -15,14 +15,26 @@ import { pantallaClientes } from './ui/clientes.js';
 import { pantallaContratos } from './ui/contratos.js';
 import { pantallaContrato } from './ui/contrato.js';
 import { pantallaCertificado } from './ui/certificado.js';
+import { pantallaVentas } from './ui/ventas.js';
+import { pantallaComprobante, pantallaNuevoComprobante } from './ui/comprobante.js';
+import { pantallaCobranza, pantallaNuevaCobranza } from './ui/cobranza.js';
+import { pantallaProveedores } from './ui/proveedores.js';
+import { pantallaCompras } from './ui/compras.js';
+import { pantallaCompra, pantallaNuevaCompra } from './ui/compra.js';
+import { pantallaPago, pantallaNuevoPago } from './ui/pago.js';
 
 const PANTALLAS = {
+  ventas: pantallaVentas, comprobante: pantallaComprobante, 'nuevo-comprobante': pantallaNuevoComprobante,
+  cobranza: pantallaCobranza, 'nueva-cobranza': pantallaNuevaCobranza,
+  proveedores: pantallaProveedores, compras: pantallaCompras, compra: pantallaCompra, 'nueva-compra': pantallaNuevaCompra,
+  pago: pantallaPago, 'nuevo-pago': pantallaNuevoPago,
   inicio: pantallaInicio, empresa: pantallaEmpresa, parametros: pantallaParametros, plan: pantallaPlan,
   centros: pantallaCentros, usuarios: pantallaUsuarios, auditoria: pantallaAuditoria,
   clientes: pantallaClientes, contratos: pantallaContratos, contrato: pantallaContrato, certificado: pantallaCertificado,
 };
 // Rutas de detalle: se marcan en el menú con la sección a la que pertenecen
-const SECCION = { contrato: 'contratos', certificado: 'contratos' };
+const SECCION = { contrato: 'contratos', certificado: 'contratos', comprobante: 'ventas', 'nuevo-comprobante': 'ventas', cobranza: 'ventas', 'nueva-cobranza': 'ventas',
+  compra: 'compras', 'nueva-compra': 'compras', pago: 'compras', 'nuevo-pago': 'compras' };
 
 const raiz = document.getElementById('app');
 let perfil = null;

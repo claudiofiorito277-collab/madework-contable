@@ -206,6 +206,14 @@ input:disabled, select:disabled, textarea:disabled { background: #f0f2f5; color:
 .fila-contrato:hover strong { text-decoration: underline; }
 details.tarjeta summary { cursor: pointer; }
 .solo-impresion { display: none; }
+.texto-alerta { color: #9a5b00; }
+.tabla tfoot td { border-top: 2px solid var(--borde); }
+.detalle-adjunto { margin-top: .6rem; }
+.detalle-adjunto summary { cursor: pointer; color: var(--azul-claro); }
+.botones-agregar { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .6rem; }
+.tabla input:not([type=checkbox]), .tabla select { max-width: 100%; }
+.tabla td .input-num { min-width: 8.5rem; }
+.input-pct { width: 5.5rem; text-align: right; }
 
 @media (max-width: 860px) {
   .kv { grid-template-columns: 1fr; gap: 0; }
@@ -218,6 +226,8 @@ details.tarjeta summary { cursor: pointer; }
   body.imprimiendo > *:not(.solo-impresion) { display: none !important; }
   body.imprimiendo .solo-impresion { display: block; color: #000; font-size: 10.5pt; }
   body { background: #fff; }
+  body:not(.imprimiendo) .lateral, body:not(.imprimiendo) .cabecera, body:not(.imprimiendo) .filtros button,
+  body:not(.imprimiendo) .pestañas, body:not(.imprimiendo) .encabezado .acciones, body:not(.imprimiendo) .avisos { display: none !important; }
   .solo-impresion .tabla { font-size: 9.5pt; }
   .solo-impresion .tabla th, .solo-impresion .tabla td { border: 1px solid #999; padding: 3px 5px; }
   .imp-cabecera { display: flex; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 6px; margin-bottom: 10px; }

@@ -6,7 +6,7 @@
   "description": "Sistema contable y de gestión MADEWORK (Caminos de las Sierras)",
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "test:sql": "node tests/sql/probar_sql.mjs && node tests/sql/probar_sql_002.mjs"
+    "test:sql": "node tests/sql/probar_sql.mjs && node tests/sql/probar_sql_002.mjs && node tests/sql/probar_sql_003.mjs && node tests/sql/probar_sql_004.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.14"

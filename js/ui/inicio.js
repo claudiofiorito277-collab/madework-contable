@@ -30,6 +30,24 @@ export async function pantallaInicio(cont, ctx) {
       else if (d <= 15) alertas.push([`Póliza ${TIPOS_POLIZA[p.tipo] ?? p.tipo} (${p.aseguradora}) vence en ${d} días`, link, 'alerta']);
     }
 
+    // Ventas
+    for (const c of r.porFacturar ?? []) alertas.push([`Certificado N° ${c.numero} aprobado sin factura registrada`, `#/nuevo-comprobante/cert:${c.id}`, 'alerta']);
+    const sinCae = (r.comprobantes ?? []).filter((c) => !c.cae);
+    if (sinCae.length) alertas.push([`${sinCae.length} comprobante(s) de venta sin CAE cargado`, '#/ventas/comprobantes', 'alerta']);
+    for (const c of (r.comprobantes ?? []).filter((x) => x.clase !== 'nota_credito' && Number(x.saldo) > 0 && x.vencimiento && x.vencimiento < hoy)) {
+      alertas.push([`${c.cliente}: factura ${c.numero_formateado} vencida el ${fechaAR(c.vencimiento)}, saldo ${pesos(c.saldo)}`, `#/comprobante/${c.id}`, 'peligro']);
+    }
+
+    // Compras
+    const comprasR = r.compras ?? [];
+    const aRevisar = comprasR.filter((c) => !c.revisado).length;
+    if (aRevisar && ['administrador', 'contador'].includes(ctx.perfil.rol)) alertas.push([`${aRevisar} comprobante(s) de compra cargados desde la obra a revisar`, '#/compras/comprobantes', 'alerta']);
+    const debe = comprasR.filter((c) => c.clase !== 'nota_credito' && Number(c.saldo) > 0 && c.vencimiento);
+    const vencidas = debe.filter((c) => c.vencimiento < hoy);
+    if (vencidas.length) alertas.push([`${vencidas.length} factura(s) de proveedores vencidas sin pagar (${pesos(vencidas.reduce((s, c) => s + Number(c.saldo), 0))})`, '#/compras/vencimientos', 'peligro']);
+    const semana = debe.filter((c) => c.vencimiento >= hoy && diasEntre(hoy, c.vencimiento) <= 7);
+    if (semana.length) alertas.push([`${semana.length} factura(s) de proveedores vencen esta semana (${pesos(semana.reduce((s, c) => s + Number(c.saldo), 0))})`, '#/compras/vencimientos', 'alerta']);
+
     // Configuración pendiente
     const pendientes = [];
     if (!e.cuit) pendientes.push(['Cargar el CUIT de la empresa', '#/empresa']);
@@ -62,7 +80,7 @@ export async function pantallaInicio(cont, ctx) {
             [['Base, usuarios, parámetros fiscales e IVA', 1], ['Contratos y certificados', 2], ['Ventas y cobranzas', 3],
              ['Compras y pagos', 4], ['Tesorería y cheques', 5], ['Contabilidad', 6], ['Costos de obra', 7],
              ['Reportes', 8], ['Manual y puesta en marcha', 9]].map(([t, n]) =>
-              h('li', { class: n <= 2 ? 'hecho' : '' }, t, n <= 2 ? etiqueta('En uso', 'ok') : etiqueta(`Etapa ${n}`)))))),
+              h('li', { class: n <= 4 ? 'hecho' : '' }, t, n <= 4 ? etiqueta('En uso', 'ok') : etiqueta(`Etapa ${n}`)))))),
     );
   });
 }

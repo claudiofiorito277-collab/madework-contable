@@ -203,6 +203,8 @@ export async function pantallaCertificado(cont, ctx, id) {
       acciones.push(b('Presentar de nuevo', () => cambiarEstado('presentado'), 'btn btn-primario'));
     }
     if (esAdmCont && ['borrador', 'presentado', 'observado', 'aprobado'].includes(cert.estado)) acciones.push(b('Anular', () => cambiarEstado('anulado', true), 'btn btn-peligro'));
+    if (cert.estado === 'aprobado' && esAdmCont) acciones.unshift(h('a', { class: 'btn btn-primario', href: `#/nuevo-comprobante/cert:${id}` }, 'Registrar factura'));
+    if (['facturado', 'cobrado'].includes(cert.estado)) acciones.unshift(h('a', { class: 'btn', href: '#/ventas/comprobantes' }, 'Ver facturas'));
     acciones.push(b('Imprimir', imprimir));
 
     const [et, tp] = ESTADOS_CERT[cert.estado];
@@ -220,7 +222,7 @@ export async function pantallaCertificado(cont, ctx, id) {
       zonaUnidades,
       zonaMultas,
       h('section', { class: 'tarjeta' }, h('h2', {}, 'Importes'), zonaTotales,
-        h('p', { class: 'campo-ayuda' }, 'La factura se registra en la Etapa 3 (Ventas y cobranzas). Tratamiento del anticipo, fondo de reparo y multas en la factura: A CONFIRMAR CON CONTADOR.')),
+        h('p', { class: 'campo-ayuda' }, 'Tratamiento del anticipo, fondo de reparo y multas en la factura: A CONFIRMAR CON CONTADOR.')),
       panelAdjuntos('certificados', id, esOperativo));
     vaciar(zonaUnidades, listaUnidades());
     redibujar();

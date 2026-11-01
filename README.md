@@ -155,14 +155,104 @@ Los navegadores no abren este sistema con doble clic en `index.html`: necesita u
 
 ---
 
+## Etapa 3 · Ventas y cobranzas
+
+### Instalación (sobre la Etapa 2 ya instalada)
+
+1. Supabase → **SQL Editor** → **New query** → pegar todo `sql/003_ventas.sql` → **Run**. Tiene que decir *Success*. Se corre una sola vez.
+2. Subir a GitHub las carpetas `css`, `js`, `sql`, `tests` y los archivos `index.html` y `README.md`.
+3. En el navegador, recargar con **Ctrl + F5**.
+
+### Cómo se usa
+
+1. **Facturar un certificado:** emitir la factura en ARCA. Después, en **Ventas y cobranzas → Por facturar → Registrar factura**: el sistema propone neto, IVA y total del certificado; cargás punto de venta, número y CAE. El certificado pasa a *facturado*.
+2. **Nota de crédito o débito:** desde la factura, botón **Nota de crédito** / **Nota de débito**. Siempre queda asociada a la factura. Si es por multas, se marcan y quedan *descontadas*.
+3. **Cobranza:** **Registrar cobranza** → marcar las facturas que se cobran → cargar lo que entró (transferencia, echeq, cheque, efectivo) → cargar cada **retención** tal como dice su certificado (Ganancias, IVA, IIBB Córdoba, SUSS u otra) → el **fondo de reparo** que retuvo el cliente (se propone solo en el primer cobro) → **Registrar**. Cuando la factura queda en cero, el certificado pasa a *cobrado*.
+4. **Adjuntos:** en el recibo se adjunta cada certificado de retención escaneado.
+5. **Cuenta corriente:** saldo, antigüedad de deuda y movimientos por cliente.
+6. **Fondo de reparo:** saldo retenido por contrato y fecha estimada de devolución. La devolución se registra como cobranza en el punto 5 del formulario.
+7. **Retenciones:** listado por período e impuesto para el contador.
+
+### Reglas que aplica la base de datos
+
+- Un comprobante no se repite: tipo + punto de venta + número. Un certificado tiene una sola factura vigente.
+- Solo se factura un certificado **aprobado**. Factura A o M exige CUIT del cliente.
+- El IVA de cada alícuota se controla contra el parámetro vigente a la fecha (tolerancia de 1 centavo).
+- Nota de crédito: misma letra y mismo cliente que la factura, fecha no anterior, y no puede superar lo que queda de la factura.
+- Una cobranza no aplica más que el saldo de cada factura ni más de lo cobrado; el resto queda *a cuenta*.
+- Un certificado de retención no se carga dos veces. No se devuelve más fondo de reparo que el retenido.
+- Los importes registrados no se modifican: ante un error, se **anula** (con motivo) y se carga de nuevo. No se anula una factura con cobros o NC vigentes.
+- Solo administrador y contador registran, anulan y modifican. Operador y consulta solo ven.
+- Ningún registro se borra; todo queda en la auditoría.
+
+### A confirmar con el contador (Etapa 3)
+
+- Si las multas descontadas por nota de crédito llevan IVA.
+- Qué retenciones practica Caminos de las Sierras y sus alícuotas (para el control opcional).
+- Tratamiento contable e impositivo del fondo de reparo retenido.
+- Si corresponde Factura M o A según la situación de MADEWORK en ARCA.
+
+## Etapa 4 · Compras y pagos
+
+### Instalación (sobre la Etapa 3 ya instalada)
+
+1. Supabase → **SQL Editor** → **New query** → pegar todo `sql/004_compras.sql` → **Run**. Tiene que decir *Success*. Se corre una sola vez y **después** de la 003.
+2. Subir a GitHub las carpetas `css`, `js`, `sql`, `tests` y los archivos `index.html`, `README.md` y `package.json`.
+3. En el navegador, recargar con **Ctrl + F5**.
+
+### Cómo se usa
+
+#### Proveedores
+
+**Proveedores → + Nuevo proveedor:** razón social, CUIT (se valida), condición frente al IVA, rubro (pinturas, materiales, combustible, alquiler de equipos, subcontratistas, seguridad, transporte, etc.) y datos bancarios (banco, CBU de 22 dígitos, alias, titular). El operador también puede dar de alta un proveedor desde la obra.
+
+#### Cargar una factura de compra
+
+1. **Compras y pagos → + Cargar factura** (también desde el celular).
+2. Elegir el proveedor: el sistema ofrece solo los tipos que corresponden (Factura A/M/B para un Responsable Inscripto; C para un monotributista).
+3. Punto de venta, número, fecha, vencimiento y descripción. Si ese comprobante ya está cargado, avisa en el momento.
+4. **Importes:** el neto por alícuota (o el total si es B o C), las **percepciones** (IVA, IIBB Córdoba u otras) y otros tributos. El sistema calcula el IVA, dice si es **crédito fiscal** y cuál es el **costo de obra**.
+5. **Imputación a obra:** contrato, ítem, centro de costo y categoría (materiales, mano de obra, equipos, subcontratos, otros). Se puede repartir en porcentajes, por ejemplo 60 % a un ítem y 40 % a otro; tiene que sumar 100 %.
+6. **Foto o PDF del comprobante:** en el celular abre la cámara y queda adjunta.
+7. **Guardar comprobante.**
+
+Lo que carga el operador queda **a revisar**: el contador o el administrador lo controla y toca **Marcar revisado**. En Inicio aparece el aviso.
+
+#### Notas de crédito, órdenes de compra y pagos
+
+- **Nota de crédito:** desde la factura, **Cargar nota de crédito**. Hereda la imputación de la factura y le baja el saldo.
+- **Órdenes de compra** (opcionales): se crean en la pestaña *Órdenes de compra* y se vinculan a la factura al cargarla.
+- **Registrar pago:** elegir proveedor → marcar los comprobantes que se pagan → medio de pago (transferencia, echeq, cheque, efectivo) → **Registrar pago**. Se puede pagar en partes o adelantar (queda como anticipo). Se imprime la **orden de pago** con el CBU del proveedor para firmar.
+- **Vencimientos:** lo vencido, lo que vence en 7 días, en 30 días y más adelante, con botón **Pagar**.
+- **Cuenta corriente:** lo que se le debe a cada proveedor, con todos sus movimientos.
+
+### Reglas que aplica la base de datos
+
+- **Duplicados:** un comprobante del mismo proveedor (CUIT) con el mismo tipo, punto de venta y número no se carga dos veces. Solo el administrador puede forzarlo, escribiendo el motivo, y queda marcado.
+- **Crédito fiscal:** solo factura A o M de un Responsable Inscripto. Factura B, C y tickets van completos al costo.
+- Un monotributista solo emite comprobantes C; un Responsable Inscripto no emite C.
+- El IVA se controla contra la alícuota vigente a la fecha.
+- La imputación tiene que sumar 100 % y los importes imputados tienen que sumar el costo; un ítem tiene que ser del contrato elegido.
+- Un pago no se aplica por más del saldo ni a comprobantes de otro proveedor.
+- **Retenciones que practica MADEWORK:** desactivadas. El sistema no deja cargarlas hasta que el contador confirme que corresponde y se active el parámetro *AGENTE_RETENCION* en Parámetros fiscales.
+- Lo registrado no se modifica: ante un error se anula con motivo y se carga de nuevo. Una factura con pagos no se anula hasta anular el pago.
+- Cargar facturas: administrador, contador y operador. Pagar, anular y revisar: administrador y contador. Nada se borra y todo queda en la auditoría.
+
+### A confirmar con el contador (Etapa 4)
+
+- Si MADEWORK tiene que actuar como agente de retención (Ganancias, IIBB Córdoba, SUSS) y con qué alícuotas.
+- Tratamiento de las percepciones de IIBB y de IVA sufridas.
+- Categorías de costo y centros de costo que quiere ver en los reportes.
+- Factura M: régimen aplicable si algún proveedor la emite.
+
 ## Pruebas automáticas
 
 Requieren [Node.js](https://nodejs.org) 20 o superior.
 
 ```
-npm test            # 59 pruebas: IVA, redondeo, vigencias, CUIT, certificados
+npm test            # 90 pruebas: IVA, redondeo, vigencias, CUIT, certificados, ventas, compras
 npm install         # una vez, para la prueba de base de datos
-npm run test:sql    # 64 pruebas: migraciones 001 y 002, permisos, auditoría, certificados
+npm run test:sql    # 176 pruebas: migraciones 001 a 004, permisos, auditoría, certificados, ventas, compras
 ```
 
 ---
@@ -174,11 +264,13 @@ index.html            Entrada
 css/app.css           Estilos (computadora y celular)
 js/config.js          Conexión a Supabase (completar)
 js/app.js             Arranque, sesión y navegación
-js/core/              Lógica pura (IVA, redondeo, vigencias, CUIT, certificados), con pruebas
+js/core/              Lógica pura (IVA, redondeo, vigencias, CUIT, certificados, ventas, compras), con pruebas
 js/data/              Única capa que habla con Supabase
 js/ui/                Pantallas
 sql/001_base.sql      Migración de la Etapa 1
 sql/002_contratos.sql Migración de la Etapa 2
+sql/003_ventas.sql    Migración de la Etapa 3
+sql/004_compras.sql   Migración de la Etapa 4
 tests/                Pruebas automáticas
 ```
 
@@ -188,7 +280,7 @@ tests/                Pruebas automáticas
 
 - Fecha de inicio del sistema: 01/11/2026. Las alícuotas rigen desde esa fecha.
 - Ingresos Brutos: contribuyente local de Córdoba (editable en Empresa).
-- Las facturas se emiten en ARCA por fuera del sistema; acá se registran (Etapa 3).
+- Las facturas se emiten en ARCA por fuera del sistema; acá se registran con su número y CAE.
 - Ejercicio del 1/1 al 31/12 (editable en Empresa).
 - Bloqueo de ingreso: 5 intentos fallidos bloquean 15 minutos en ese navegador. Además, Supabase limita los intentos de inicio de sesión desde el servidor.
 

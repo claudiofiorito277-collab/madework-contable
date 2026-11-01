@@ -28,8 +28,14 @@ function agregar(el, hijos) {
 }
 
 export function vaciar(el, ...hijos) {
-  while (el.firstChild) el.removeChild(el.firstChild);
-  agregar(el, hijos);
+  // replaceChildren reemplaza todo de una vez: si un campo que se está quitando
+  // dispara "change" al perder el foco y ese evento vuelve a dibujar, no se rompe.
+  const nuevos = [];
+  for (const c of hijos.flat(Infinity)) {
+    if (c === null || c === undefined || c === false) continue;
+    nuevos.push(c instanceof Node ? c : document.createTextNode(String(c)));
+  }
+  el.replaceChildren(...nuevos);
   return el;
 }
 

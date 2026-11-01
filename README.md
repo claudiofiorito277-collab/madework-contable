@@ -245,14 +245,83 @@ Lo que carga el operador queda **a revisar**: el contador o el administrador lo 
 - Categorías de costo y centros de costo que quiere ver en los reportes.
 - Factura M: régimen aplicable si algún proveedor la emite.
 
+## Etapa 5 · Tesorería, bancos y cheques
+
+### Instalación (sobre la Etapa 4 ya instalada)
+
+1. Subir a GitHub las carpetas `css`, `js`, `sql` y `tests`, y los archivos `index.html`, `README.md` y `package.json`.
+2. Supabase → **SQL Editor** → correr `sql/005_tesoreria.sql`. Tiene que decir *Success*. Se corre una sola vez.
+3. En el navegador, recargar con **Ctrl + F5**.
+
+### Antes de usarla: cargar las cuentas
+
+**Tesorería y cheques → Cuentas y saldos → + Nueva caja o cuenta.** Una por cada cuenta bancaria y cada caja (por ejemplo, *Galicia cta. cte.* y *Caja obra*), con el saldo real al 01/11/2026. Desde esta etapa, cada cobranza y cada pago pide de qué cuenta entra o sale la plata.
+
+### Cómo se usa
+
+#### Cobranzas y pagos mueven la tesorería solos
+
+- **Transferencia o efectivo:** entra o sale en el momento de la cuenta elegida (las transferencias van a un banco, el efectivo a una caja).
+- **Cheque o echeq recibido:** queda en la **cartera de cheques** hasta que se deposita.
+- **Cheque o echeq propio:** queda *emitido* y sale de la cuenta cuando se marca **Debitado**.
+- **Cheque de terceros:** en un pago se puede **endosar** un cheque de la cartera al proveedor.
+- Al anular una cobranza o un pago se anula su movimiento; si el cheque ya se depositó o se debitó, el sistema no deja anular.
+
+#### Cheques
+
+**Tesorería → Cheques:** cartera de cheques de terceros, cheques propios a debitar, y todos. Acciones según el estado: **Depositar**, **Acreditado**, **Debitado** y **Rechazado**.
+
+**Cheque rechazado:** se registra con fecha y motivo. Si ya estaba acreditado, el sistema registra el débito del banco. **La deuda se reabre** en las facturas que había cancelado (de la última a la primera), el certificado vuelve a *facturado* y en la cuenta corriente del cliente aparece "Cheque rechazado". Lo mismo con un cheque propio rechazado: vuelve la plata y se reabre la deuda con el proveedor.
+
+**Alertas** (también en Inicio): cheques de terceros que ya se pueden depositar o que están por vencer (vencen a los 30 días de la fecha de pago) y cheques propios que se debitan en los próximos días.
+
+#### Movimientos manuales y transferencias
+
+- **+ Transferencia entre cuentas:** por ejemplo, del banco a la caja de obra. Genera dos movimientos (sale de una, entra en la otra) y no cambia el total.
+- **+ Movimiento manual:** gastos e impuestos bancarios, aportes o retiros de los socios, ajustes.
+- **Impuesto a los débitos y créditos:** si la cuenta lo tiene marcado y el parámetro *BANCARIO / IMP_DEB_CRED* tiene valor, se calcula solo en cada movimiento (no en transferencias propias). Hoy el parámetro está *a confirmar con el contador*, así que no se calcula.
+
+#### Conciliación bancaria
+
+1. **Tesorería → Conciliación** → elegir la cuenta → **Importar extracto** (CSV o Excel, como lo baja el home banking).
+2. La primera vez se indica qué columna es la fecha, la descripción y el importe (o débito y crédito). El sistema lo adivina por los títulos y lo **guarda para ese banco**.
+3. El sistema sugiere qué movimiento corresponde a cada línea: mismo importe y fecha cercana (hasta 5 días). **Conciliar las coincidencias sugeridas.**
+4. Lo que está en el banco y no en el sistema (comisiones, impuestos, intereses): botón **Cargar**, que lo registra y lo concilia en un paso. Las líneas informativas se pueden **Ignorar**.
+5. **Control de saldos:** se escribe el saldo final del extracto y el sistema muestra si la diferencia con el sistema queda explicada por las partidas pendientes (*Cuadra ✓*).
+
+Si se importa dos veces el mismo extracto, las líneas repetidas se saltean.
+
+#### Flujo de fondos
+
+**Tesorería → Flujo de fondos**, por semana o por mes:
+- **Real:** lo que entró y salió de cajas y bancos.
+- **Proyectado:** suma las facturas a cobrar y los cheques en cartera, y resta las facturas a pagar y los cheques propios por debitar, según su vencimiento. Lo atrasado se cuenta en la semana actual.
+
+Así se ve con anticipación una semana en la que el saldo queda en rojo.
+
+### Reglas que aplica la base de datos
+
+- Los movimientos de cobranzas, pagos, cheques y transferencias los genera el sistema; no se cargan ni se anulan a mano.
+- Un cheque no se carga dos veces; un cheque diferido no se deposita antes de su fecha.
+- Una cobranza o un pago con un cheque rechazado no se anula (la deuda ya se reabrió).
+- Un movimiento conciliado no se anula sin antes desconciliarlo.
+- El saldo inicial de una cuenta no se cambia cuando ya tiene movimientos (se carga un ajuste).
+- Tesorería la operan administrador y contador; la consulta solo ve; el operador no la ve.
+
+### A confirmar con el contador (Etapa 5)
+
+- Alícuota del impuesto a los débitos y créditos y si se computa como pago a cuenta de Ganancias.
+- Tratamiento de los gastos bancarios por cheques rechazados.
+- Si conviene una cuenta de caja chica por obra.
+
 ## Pruebas automáticas
 
 Requieren [Node.js](https://nodejs.org) 20 o superior.
 
 ```
-npm test            # 90 pruebas: IVA, redondeo, vigencias, CUIT, certificados, ventas, compras
+npm test            # 103 pruebas: IVA, redondeo, vigencias, CUIT, certificados, ventas, compras, tesorería
 npm install         # una vez, para la prueba de base de datos
-npm run test:sql    # 176 pruebas: migraciones 001 a 004, permisos, auditoría, certificados, ventas, compras
+npm run test:sql    # 231 pruebas: migraciones 001 a 005, permisos, auditoría, certificados, ventas, compras, tesorería
 ```
 
 ---
@@ -264,13 +333,14 @@ index.html            Entrada
 css/app.css           Estilos (computadora y celular)
 js/config.js          Conexión a Supabase (completar)
 js/app.js             Arranque, sesión y navegación
-js/core/              Lógica pura (IVA, redondeo, vigencias, CUIT, certificados, ventas, compras), con pruebas
+js/core/              Lógica pura (IVA, redondeo, vigencias, CUIT, certificados, ventas, compras, tesorería), con pruebas
 js/data/              Única capa que habla con Supabase
 js/ui/                Pantallas
 sql/001_base.sql      Migración de la Etapa 1
 sql/002_contratos.sql Migración de la Etapa 2
 sql/003_ventas.sql    Migración de la Etapa 3
 sql/004_compras.sql   Migración de la Etapa 4
+sql/005_tesoreria.sql Migración de la Etapa 5
 tests/                Pruebas automáticas
 ```
 

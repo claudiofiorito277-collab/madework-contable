@@ -2,7 +2,7 @@
 // cuenta corriente del cliente, fondo de reparo y retenciones sufridas.
 import { h, vaciar, pantalla, campo, select, etiqueta, fechaAR, pesos, cent, hoyISO, cargando } from './dom.js';
 import { encabezado } from './layout.js';
-import { ventas, clientes } from '../data/repos.js';
+import { ventas, clientes, tesoreria } from '../data/repos.js';
 import { aCentavos } from '../core/redondeo.js';
 import { cuentaCorriente, antiguedad, MEDIOS, TIPOS_RETENCION } from '../core/ventas.js';
 import { sumarDias } from '../core/certificados.js';
@@ -140,10 +140,13 @@ const VISTAS = {
     const zona = h('div');
     const pintar = async () => {
       vaciar(zona, cargando());
-      const [comps, cobs] = await Promise.all([ventas.comprobantes({ clienteId: sel.value }), ventas.cobranzas({ clienteId: sel.value })]);
+      const [comps, cobs, chs] = await Promise.all([ventas.comprobantes({ clienteId: sel.value }), ventas.cobranzas({ clienteId: sel.value }), tesoreria.cheques({ tipo: 'recibido', estados: ['rechazado'] })]);
+      // Un cheque rechazado vuelve a ser deuda del cliente
+      const rechazos = chs.filter((x) => x.cliente_id === sel.value).map((x) => ({ id: `chq:${x.id}`, fecha: x.fecha_estado, clase: 'nota_debito', estado: 'emitido',
+        descripcion: `Cheque rechazado N° ${x.numero} (${x.motivo})`, total: aCentavos(x.importe) }));
       const cc = cuentaCorriente({
         comprobantes: comps.map((c) => ({ id: c.id, fecha: c.fecha, clase: c.clase, estado: c.estado === 'emitido' ? 'emitido' : 'anulado',
-          descripcion: `${nombreComprobante(c)}${c.certificado_numero ? ` · Cert. ${c.certificado_numero}` : ''}`, total: aCentavos(c.total) })),
+          descripcion: `${nombreComprobante(c)}${c.certificado_numero ? ` · Cert. ${c.certificado_numero}` : ''}`, total: aCentavos(c.total) })).concat(rechazos),
         cobranzas: cobs.map((r) => ({ id: r.id, fecha: r.fecha, numero: r.numero, estado: r.estado, total: aCentavos(r.total),
           devolucion_fr: aCentavos(r.importe_devolucion_fr),
           descripcion: `Recibo N° ${r.numero}${incluye(r)}` })),
@@ -160,7 +163,7 @@ const VISTAS = {
         saldoAnterior = antes.length ? antes[antes.length - 1].saldo : 0;
         movs = movs.filter((m) => m.fecha >= desde.value);
       }
-      const link = (m) => (m.tipo === 'comprobante' ? `#/comprobante/${m.id}` : `#/cobranza/${m.id}`);
+      const link = (m) => (String(m.id).startsWith('chq:') ? '#/tesoreria/cheques' : m.tipo === 'comprobante' ? `#/comprobante/${m.id}` : `#/cobranza/${m.id}`);
       vaciar(zona,
         h('div', { class: 'datos' },
           h('div', { class: `dato${cc.saldo > 0 ? ' dato-alerta' : ''}` }, h('div', { class: 'dato-titulo' }, 'Saldo deudor'), h('div', { class: 'dato-valor' }, cent(cc.saldo)),

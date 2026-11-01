@@ -22,12 +22,13 @@ import { pantallaProveedores } from './ui/proveedores.js';
 import { pantallaCompras } from './ui/compras.js';
 import { pantallaCompra, pantallaNuevaCompra } from './ui/compra.js';
 import { pantallaPago, pantallaNuevoPago } from './ui/pago.js';
+import { pantallaTesoreria } from './ui/tesoreria.js';
 
 const PANTALLAS = {
   ventas: pantallaVentas, comprobante: pantallaComprobante, 'nuevo-comprobante': pantallaNuevoComprobante,
   cobranza: pantallaCobranza, 'nueva-cobranza': pantallaNuevaCobranza,
   proveedores: pantallaProveedores, compras: pantallaCompras, compra: pantallaCompra, 'nueva-compra': pantallaNuevaCompra,
-  pago: pantallaPago, 'nuevo-pago': pantallaNuevoPago,
+  pago: pantallaPago, 'nuevo-pago': pantallaNuevoPago, tesoreria: pantallaTesoreria,
   inicio: pantallaInicio, empresa: pantallaEmpresa, parametros: pantallaParametros, plan: pantallaPlan,
   centros: pantallaCentros, usuarios: pantallaUsuarios, auditoria: pantallaAuditoria,
   clientes: pantallaClientes, contratos: pantallaContratos, contrato: pantallaContrato, certificado: pantallaCertificado,

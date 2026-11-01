@@ -2,7 +2,7 @@
 // del proveedor y órdenes de compra.
 import { h, vaciar, pantalla, campo, select, etiqueta, fechaAR, pesos, cent, hoyISO, cargando, modal, aviso, error, leerPesos } from './dom.js';
 import { encabezado } from './layout.js';
-import { compras, proveedores, contratos } from '../data/repos.js';
+import { compras, proveedores, contratos, tesoreria } from '../data/repos.js';
 import { aCentavos } from '../core/redondeo.js';
 import { cuentaCorrienteProveedor, agruparVencimientos } from '../core/compras.js';
 import { formatearCuit } from '../core/cuit.js';
@@ -118,14 +118,16 @@ const VISTAS = {
     const zona = h('div');
     const pintar = async () => {
       vaciar(zona, cargando());
-      const [comps, pags] = await Promise.all([compras.comprobantes({ proveedorId: sel.value }), compras.pagos({ proveedorId: sel.value })]);
+      const [comps, pags, chs] = await Promise.all([compras.comprobantes({ proveedorId: sel.value }), compras.pagos({ proveedorId: sel.value }), tesoreria.cheques({ tipo: 'emitido', estados: ['rechazado'] })]);
+      const rechazos = chs.filter((x) => x.proveedor_id === sel.value).map((x) => ({ id: `chq:${x.id}`, fecha: x.fecha_estado, clase: 'nota_debito', estado: 'emitido',
+        total: aCentavos(x.importe), descripcion: `Cheque propio rechazado N° ${x.numero} (${x.motivo})` }));
       const p = provs.find((x) => x.id === sel.value);
       const cc = cuentaCorrienteProveedor({
-        comprobantes: comps.map((c) => ({ id: c.id, fecha: c.fecha, clase: c.clase, estado: c.estado, total: aCentavos(c.total), descripcion: nombreCompra(c) })),
+        comprobantes: comps.map((c) => ({ id: c.id, fecha: c.fecha, clase: c.clase, estado: c.estado, total: aCentavos(c.total), descripcion: nombreCompra(c) })).concat(rechazos),
         pagos: pags.map((x) => ({ id: x.id, fecha: x.fecha, numero: x.numero, estado: x.estado, total: aCentavos(x.total),
           descripcion: `Orden de pago N° ${x.numero}${aCentavos(x.importe_retenciones) ? ' (incluye retenciones)' : ''}` })),
       });
-      const link = (m) => (m.tipo === 'comprobante' ? `#/compra/${m.id}` : `#/pago/${m.id}`);
+      const link = (m) => (String(m.id).startsWith('chq:') ? '#/tesoreria/cheques' : m.tipo === 'comprobante' ? `#/compra/${m.id}` : `#/pago/${m.id}`);
       vaciar(zona,
         h('div', { class: 'datos' },
           h('div', { class: `dato${cc.saldo > 0 ? ' dato-alerta' : ''}` }, h('div', { class: 'dato-titulo' }, 'Le debemos'), h('div', { class: 'dato-valor' }, cent(Math.max(cc.saldo, 0))),

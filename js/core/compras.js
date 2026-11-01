@@ -29,7 +29,7 @@ export const TIPOS_PERCEPCION = {
 };
 
 export const MEDIOS_PAGO = {
-  transferencia: 'Transferencia', echeq: 'Echeq', cheque: 'Cheque', efectivo: 'Efectivo', otro: 'Otro',
+  transferencia: 'Transferencia', echeq: 'Echeq propio', cheque: 'Cheque propio', cheque_tercero: 'Cheque de terceros (endoso)', efectivo: 'Efectivo', otro: 'Otro',
 };
 
 const entero = (x) => Number.isSafeInteger(x);

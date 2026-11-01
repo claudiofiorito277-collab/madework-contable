@@ -2,6 +2,7 @@ import { h, vaciar, pantalla, etiqueta, fechaAR, hoyISO, pesos, barra } from './
 import { encabezado } from './layout.js';
 import { resumen } from '../data/repos.js';
 import { diasEntre } from '../core/certificados.js';
+import { alertasCheques } from '../core/tesoreria.js';
 
 const TIPOS_POLIZA = { responsabilidad_civil: 'Responsabilidad civil', caucion_anticipo: 'Caución de anticipo', caucion_cumplimiento: 'Caución de cumplimiento',
   art: 'ART', vida_obligatorio: 'Vida obligatorio', accidentes_personales: 'Accidentes personales' };
@@ -48,6 +49,12 @@ export async function pantallaInicio(cont, ctx) {
     const semana = debe.filter((c) => c.vencimiento >= hoy && diasEntre(hoy, c.vencimiento) <= 7);
     if (semana.length) alertas.push([`${semana.length} factura(s) de proveedores vencen esta semana (${pesos(semana.reduce((s, c) => s + Number(c.saldo), 0))})`, '#/compras/vencimientos', 'alerta']);
 
+    // Cheques
+    for (const a of alertasCheques(r.cheques ?? [], hoy)) {
+      const ch = a.cheque;
+      alertas.push([`Cheque ${ch.tipo === 'recibido' ? `de ${ch.cliente ?? 'terceros'}` : `propio a ${ch.proveedor ?? ''}`} N° ${ch.numero} (${pesos(ch.importe)}): ${a.texto.replace(/\d{4}-\d{2}-\d{2}/g, (x) => fechaAR(x))}`, '#/tesoreria/cheques', a.tipo]);
+    }
+
     // Configuración pendiente
     const pendientes = [];
     if (!e.cuit) pendientes.push(['Cargar el CUIT de la empresa', '#/empresa']);
@@ -80,7 +87,7 @@ export async function pantallaInicio(cont, ctx) {
             [['Base, usuarios, parámetros fiscales e IVA', 1], ['Contratos y certificados', 2], ['Ventas y cobranzas', 3],
              ['Compras y pagos', 4], ['Tesorería y cheques', 5], ['Contabilidad', 6], ['Costos de obra', 7],
              ['Reportes', 8], ['Manual y puesta en marcha', 9]].map(([t, n]) =>
-              h('li', { class: n <= 4 ? 'hecho' : '' }, t, n <= 4 ? etiqueta('En uso', 'ok') : etiqueta(`Etapa ${n}`)))))),
+              h('li', { class: n <= 5 ? 'hecho' : '' }, t, n <= 5 ? etiqueta('En uso', 'ok') : etiqueta(`Etapa ${n}`)))))),
     );
   });
 }

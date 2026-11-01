@@ -1,7 +1,7 @@
 // Cobranzas (recibos): alta con medios de cobro, retenciones sufridas, fondo de reparo
 // retenido, aplicación a facturas y devolución de fondo de reparo; y detalle del recibo.
 import { h, vaciar, pantalla, campo, select, modal, aviso, error, etiqueta, fechaAR, pesos, cent, hoyISO, leerPesos, cargando } from './dom.js';
-import { ventas, clientes, fiscal, empresa, certificados } from '../data/repos.js';
+import { ventas, clientes, fiscal, empresa, certificados, tesoreria } from '../data/repos.js';
 import { panelAdjuntos } from './adjuntos.js';
 import { nombreComprobante } from './ventas.js';
 import { aCentavos } from '../core/redondeo.js';
@@ -23,12 +23,15 @@ export async function pantallaNuevaCobranza(cont, ctx, clienteParam) {
     return;
   }
   await pantalla(cont, async () => {
-    const [clis, catalogo] = await Promise.all([clientes.listar(), fiscal.catalogo()]);
+    const [clis, catalogo, cuentasT] = await Promise.all([clientes.listar(), fiscal.catalogo(), tesoreria.cuentas()]);
+    const cuentasAct = cuentasT.filter((c) => c.activo);
+    const cuentasPara = (medio) => cuentasAct.filter((c) => (medio === 'efectivo' ? c.tipo === 'caja' : medio === 'transferencia' ? c.tipo === 'banco' : true));
+    const cuentaDefecto = (medio) => cuentasPara(medio)[0]?.id ?? '';
     const activos = clis.filter((c) => c.activo);
     const est = {
       cliente_id: clienteParam && clis.some((c) => c.id === clienteParam) ? clienteParam : (activos.length === 1 ? activos[0].id : ''),
       fecha: hoyISO(),
-      medios: [{ medio: 'transferencia', importe: 0 }],
+      medios: [{ medio: 'transferencia', importe: 0, cuenta_id: '' }],
       retenciones: [],
       fondoReparo: [],
       aplic: {},          // comprobante_id -> centavos
@@ -115,21 +118,26 @@ export async function pantallaNuevaCobranza(cont, ctx, clienteParam) {
     };
 
     // ---------- Medios de cobro
-    const pintarMedios = () => vaciar(zonaMedios, h('div', { class: 'tabla-scroll' }, h('table', { class: 'tabla' },
-      h('thead', {}, h('tr', {}, ['Medio', 'Importe', 'Banco', 'N° operación / cheque', 'Fecha de pago', 'Librador', 'CUIT librador', ''].map((t) => h('th', {}, t)))),
+    const pintarMedios = () => vaciar(zonaMedios,
+      cuentasAct.length ? null : h('div', { class: 'tarjeta tarjeta-alerta' }, 'Todavía no cargaste cajas ni cuentas bancarias: hacelo en ', h('a', { href: '#/tesoreria/cuentas' }, 'Tesorería'), ' para registrar transferencias o efectivo.'),
+      h('div', { class: 'tabla-scroll' }, h('table', { class: 'tabla' },
+      h('thead', {}, h('tr', {}, ['Medio', 'Importe', 'Cuenta / banco', 'N° operación / cheque', 'Fecha de pago', 'Librador', 'CUIT librador', ''].map((t) => h('th', {}, t)))),
       h('tbody', {}, est.medios.map((m, i) => {
         const cheque = ['echeq', 'cheque'].includes(m.medio);
+        if (!cheque && !cuentasPara(m.medio).some((c) => c.id === m.cuenta_id)) m.cuenta_id = cuentaDefecto(m.medio);
         const inp = (k, props = {}) => h('input', { value: m[k] ?? '', ...props, onchange: (e) => { m[k] = e.target.value.trim(); } });
         return h('tr', {},
           h('td', {}, select(Object.entries(MEDIOS), m.medio, { 'aria-label': `Medio ${i + 1}`, onchange: (e) => { m.medio = e.target.value; pintarMedios(); } })),
           h('td', {}, filaInput(m.importe, (v) => { m.importe = v; pintarResumen(); }, { 'aria-label': `Importe medio ${i + 1}` })),
-          h('td', {}, m.medio === 'efectivo' ? '—' : inp('banco', { 'aria-label': 'Banco', size: 12 })),
+          h('td', {}, cheque ? inp('banco', { 'aria-label': 'Banco', size: 12, placeholder: 'Banco del cheque' })
+            : select([['', 'Elegí'], ...cuentasPara(m.medio).map((c) => [c.id, c.nombre])], m.cuenta_id, { 'aria-label': `Cuenta medio ${i + 1}`, onchange: (e) => { m.cuenta_id = e.target.value; } })),
           h('td', {}, m.medio === 'efectivo' ? '—' : inp('numero', { 'aria-label': 'Número', size: 12 })),
           h('td', {}, inp('fecha_pago', { type: 'date', 'aria-label': 'Fecha de pago' })),
           h('td', {}, cheque ? inp('librador', { 'aria-label': 'Librador', size: 14 }) : '—'),
           h('td', {}, cheque ? inp('cuit_librador', { 'aria-label': 'CUIT librador', size: 13, placeholder: '30-...' }) : '—'),
           h('td', {}, est.medios.length > 1 ? h('button', { class: 'btn btn-chico', type: 'button', onclick: () => { est.medios.splice(i, 1); pintarMedios(); pintarResumen(); } }, 'Quitar') : null));
       }))),
+      h('p', { class: 'campo-ayuda' }, 'Las transferencias y el efectivo entran directo a la cuenta elegida. Los cheques y echeqs quedan en la cartera de Tesorería hasta que se depositan.'),
       h('button', { class: 'btn btn-chico', type: 'button', onclick: () => { est.medios.push({ medio: 'echeq', importe: 0 }); pintarMedios(); } }, '+ Otro medio')));
 
     // ---------- Retenciones
@@ -213,6 +221,12 @@ export async function pantallaNuevaCobranza(cont, ctx, clienteParam) {
         if (!est.fecha) throw new Error('Falta la fecha.');
         const errs = [];
         for (const m of est.medios) if (m.cuit_librador && !cuitValido(m.cuit_librador)) errs.push(`El CUIT del librador ${m.cuit_librador} no es válido.`);
+        est.medios.filter((m) => m.importe).forEach((m, i) => {
+          if (['echeq', 'cheque'].includes(m.medio)) {
+            if (!m.numero) errs.push(`Medio ${i + 1}: falta el número del ${MEDIOS[m.medio].toLowerCase()}.`);
+            if (!m.fecha_pago) errs.push(`Medio ${i + 1}: falta la fecha de pago del ${MEDIOS[m.medio].toLowerCase()}.`);
+          } else if (!m.cuenta_id) errs.push(`Medio ${i + 1}: elegí la cuenta o caja donde entra.`);
+        });
         for (const r of est.retenciones) if (r.tipo === 'OTRA' && !String(r.descripcion ?? '').trim()) errs.push('Indicá qué retención es la "Otra".');
         const r = resumen();
         if (!r.ok) errs.push(...r.errores);
@@ -221,7 +235,7 @@ export async function pantallaNuevaCobranza(cont, ctx, clienteParam) {
         const id = await ventas.registrarCobranza({
           cliente_id: est.cliente_id, fecha: est.fecha, observacion: fObs.value,
           medios: d.medios.map((m) => ({ medio: m.medio, importe: aTxt(m.importe), banco: m.banco, numero: m.numero, fecha_pago: m.fecha_pago || null,
-            librador: m.librador, cuit_librador: m.cuit_librador, referencia: m.referencia })),
+            librador: m.librador, cuit_librador: m.cuit_librador, referencia: m.referencia, cuenta_id: ['echeq', 'cheque'].includes(m.medio) ? null : (m.cuenta_id || null) })),
           retenciones: d.retenciones.map((x) => ({ tipo: x.tipo, descripcion: x.descripcion, numero_certificado: x.numero_certificado, fecha: x.fecha || est.fecha,
             base: x.base ? aTxt(x.base) : null, alicuota: x.alicuota ?? null, importe: aTxt(x.importe), comprobante_venta_id: x.comprobante_venta_id || null })),
           fondo_reparo: d.fondoReparo.map((x) => ({ contrato_id: x.contrato_id, comprobante_venta_id: x.comprobante_venta_id || null, importe: aTxt(x.importe) })),

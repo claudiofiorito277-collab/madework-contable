@@ -84,7 +84,7 @@ export const auditoria = {
 // ---------- Panel de inicio ----------
 export const resumen = {
   async pendientes() {
-    const [emp, params, perfs, contratosV, pols, porFacturar, comprobantes, compras] = await Promise.all([
+    const [emp, params, perfs, contratosV, pols, porFacturar, comprobantes, compras, cheques] = await Promise.all([
       empresa.obtener(),
       q(sb.from('parametros_fiscales').select('codigo, descripcion').eq('a_confirmar', true).is('vigente_hasta', null)),
       q(sb.from('perfiles').select('email, activo')),
@@ -93,9 +93,10 @@ export const resumen = {
       q(sb.from('certificados').select('id, numero, contrato_id').eq('estado', 'aprobado')),
       q(sb.from('v_comprobantes_venta').select('id, clase, cae, saldo, vencimiento, numero_formateado, cliente').eq('estado', 'emitido')),
       q(sb.from('v_comprobantes_compra').select('id, clase, revisado, saldo, vencimiento, numero_formateado, proveedor').eq('estado', 'emitido')),
+      q(sb.from('v_cheques').select('id, tipo, estado, numero, fecha_pago, importe, cliente, proveedor').in('estado', ['en_cartera', 'emitido'])),
     ]);
     return { empresa: emp, parametrosAConfirmar: params, usuariosInactivos: perfs.filter((p) => !p.activo), contratos: contratosV, polizas: pols,
-      porFacturar, comprobantes, compras };
+      porFacturar, comprobantes, compras, cheques };
   },
 };
 
@@ -308,4 +309,45 @@ export const compras = {
   async ordenes() { return q(sb.from('ordenes_compra').select('*, proveedores(razon_social), contratos(codigo)').order('numero', { ascending: false })); },
   async crearOrden(o) { return q(sb.from('ordenes_compra').insert(o).select()); },
   async actualizarOrden(id, cambios) { return qActualizar(sb.from('ordenes_compra').update(cambios).eq('id', id).select()); },
+};
+
+// ---------- Tesorería (Etapa 5) ----------
+export const tesoreria = {
+  async cuentas() { return q(sb.from('v_saldos_cuentas').select('*').order('tipo').order('nombre')); },
+  async crearCuenta(c) { return q(sb.from('cuentas_tesoreria').insert(c).select()); },
+  async actualizarCuenta(id, cambios) { return qActualizar(sb.from('cuentas_tesoreria').update(cambios).eq('id', id).select()); },
+  async movimientos({ cuentaId, desde, hasta } = {}) {
+    let c = sb.from('v_movimientos').select('*').order('fecha', { ascending: false }).order('creado_en', { ascending: false });
+    if (cuentaId) c = c.eq('cuenta_id', cuentaId);
+    if (desde) c = c.gte('fecha', desde);
+    if (hasta) c = c.lte('fecha', hasta);
+    return q(c);
+  },
+  async crearMovimiento(m) { return q(sb.from('movimientos_tesoreria').insert(m).select()); },
+  async anularMovimiento(id, motivo) { return q(sb.rpc('fn_anular_movimiento', { p_id: id, p_motivo: motivo })); },
+  async transferir({ origen, destino, fecha, importe, descripcion }) {
+    return q(sb.rpc('fn_transferencia', { p_origen: origen, p_destino: destino, p_fecha: fecha, p_importe: importe, p_descripcion: descripcion || null }));
+  },
+  async cheques({ tipo, estados } = {}) {
+    let c = sb.from('v_cheques').select('*').order('fecha_pago');
+    if (tipo) c = c.eq('tipo', tipo);
+    if (estados) c = c.in('estado', estados);
+    return q(c);
+  },
+  async depositar(id, cuenta, fecha) { return q(sb.rpc('fn_cheque_depositar', { p_id: id, p_cuenta: cuenta, p_fecha: fecha })); },
+  async acreditar(id, fecha, cuenta) { return q(sb.rpc('fn_cheque_acreditar', { p_id: id, p_fecha: fecha, p_cuenta: cuenta || null })); },
+  async debitar(id, fecha) { return q(sb.rpc('fn_cheque_debitar', { p_id: id, p_fecha: fecha })); },
+  async rechazar(id, fecha, motivo) { return q(sb.rpc('fn_cheque_rechazar', { p_id: id, p_fecha: fecha, p_motivo: motivo })); },
+  async mapeos() { return q(sb.from('mapeos_extracto').select('*').order('banco')); },
+  async guardarMapeo(banco, config) {
+    const ya = await q(sb.from('mapeos_extracto').select('id').eq('banco', banco).maybeSingle());
+    return ya ? qActualizar(sb.from('mapeos_extracto').update({ config }).eq('id', ya.id).select()) : q(sb.from('mapeos_extracto').insert({ banco, config }).select());
+  },
+  async importarExtracto(datos) { return q(sb.rpc('fn_importar_extracto', { p: datos })); },
+  async lineas(cuentaId) { return q(sb.from('extracto_lineas').select('*').eq('cuenta_id', cuentaId).order('fecha', { ascending: false })); },
+  async extractos(cuentaId) { return q(sb.from('extractos_bancarios').select('*').eq('cuenta_id', cuentaId).order('creado_en', { ascending: false })); },
+  async conciliar(linea, movimiento) { return q(sb.rpc('fn_conciliar', { p_linea: linea, p_movimiento: movimiento })); },
+  async desconciliar(linea) { return q(sb.rpc('fn_desconciliar', { p_linea: linea })); },
+  async ignorar(linea, motivo) { return q(sb.rpc('fn_ignorar_linea', { p_linea: linea, p_motivo: motivo })); },
+  async desdeLinea(linea, categoria, descripcion) { return q(sb.rpc('fn_movimiento_desde_linea', { p_linea: linea, p_categoria: categoria, p_descripcion: descripcion || null })); },
 };

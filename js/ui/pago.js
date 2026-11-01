@@ -1,6 +1,6 @@
 // Pagos a proveedores (órdenes de pago): alta y detalle con impresión.
 import { h, vaciar, pantalla, campo, select, modal, aviso, error, etiqueta, fechaAR, pesos, cent, hoyISO, leerPesos, cargando } from './dom.js';
-import { compras, proveedores, fiscal, empresa } from '../data/repos.js';
+import { compras, proveedores, fiscal, empresa, tesoreria } from '../data/repos.js';
 import { panelAdjuntos } from './adjuntos.js';
 import { nombreCompra } from './compras.js';
 import { aCentavos } from '../core/redondeo.js';
@@ -20,7 +20,9 @@ export async function pantallaNuevoPago(cont, ctx, provParam) {
     return;
   }
   await pantalla(cont, async () => {
-    const [provs, catalogo] = await Promise.all([proveedores.listar(), fiscal.catalogo()]);
+    const [provs, catalogo, cuentasT, cartera] = await Promise.all([proveedores.listar(), fiscal.catalogo(), tesoreria.cuentas(), tesoreria.cheques({ tipo: 'recibido', estados: ['en_cartera'] })]);
+    const cuentasAct = cuentasT.filter((c) => c.activo);
+    const cuentasPara = (medio) => cuentasAct.filter((c) => (medio === 'efectivo' ? c.tipo === 'caja' : ['transferencia', 'echeq', 'cheque'].includes(medio) ? c.tipo === 'banco' : true));
     const est = { proveedor_id: provs.some((p) => p.id === provParam) ? provParam : '', fecha: hoyISO(), medios: [{ medio: 'transferencia', importe: 0 }], retenciones: [], aplic: {}, pendientes: [] };
     const agente = () => { try { return Number(buscarVigente(catalogo.parametros, { tipo: 'AGENTE_RETENCION', codigo: 'ACTIVO', fecha: est.fecha })?.valor) === 1; } catch { return false; } };
     const zPend = h('div'); const zMed = h('div'); const zRet = h('div'); const zRes = h('div'); const zProv = h('div');
@@ -67,18 +69,27 @@ export async function pantallaNuevoPago(cont, ctx, provParam) {
             pintar();
           } }, 'Repartir lo pagado de lo más viejo a lo más nuevo'))));
     };
-    const pintarMed = () => vaciar(zMed, h('div', { class: 'tabla-scroll' }, h('table', { class: 'tabla' },
-      h('thead', {}, h('tr', {}, ['Medio', 'Importe', 'Banco', 'N° operación / cheque', 'Fecha de pago', ''].map((t) => h('th', {}, t)))),
+    const pintarMed = () => vaciar(zMed,
+      cuentasAct.length ? null : h('div', { class: 'tarjeta tarjeta-alerta' }, 'Todavía no cargaste cajas ni cuentas bancarias: hacelo en ', h('a', { href: '#/tesoreria/cuentas' }, 'Tesorería'), '.'),
+      h('div', { class: 'tabla-scroll' }, h('table', { class: 'tabla' },
+      h('thead', {}, h('tr', {}, ['Medio', 'Importe', 'Cuenta / cheque', 'N° operación / cheque', 'Fecha de pago', ''].map((t) => h('th', {}, t)))),
       h('tbody', {}, est.medios.map((m, i) => {
         const t = (k, props = {}) => h('input', { value: m[k] ?? '', ...props, onchange: (e) => { m[k] = e.target.value.trim(); } });
+        const tercero = m.medio === 'cheque_tercero';
+        if (!tercero && !cuentasPara(m.medio).some((c) => c.id === m.cuenta_id)) m.cuenta_id = cuentasPara(m.medio)[0]?.id ?? '';
+        const usados = new Set(est.medios.filter((x, j) => j !== i && x.medio === 'cheque_tercero').map((x) => x.cheque_id));
         return h('tr', {},
-          h('td', {}, select(Object.entries(MEDIOS_PAGO), m.medio, { 'aria-label': `Medio ${i + 1}`, onchange: (e) => { m.medio = e.target.value; pintarMed(); } })),
-          h('td', {}, inp(m.importe, (v) => { m.importe = v; pintarRes(); }, { 'aria-label': `Importe medio ${i + 1}` })),
-          h('td', {}, m.medio === 'efectivo' ? '—' : t('banco', { size: 12, 'aria-label': 'Banco' })),
-          h('td', {}, m.medio === 'efectivo' ? '—' : t('numero', { size: 12, 'aria-label': 'Número' })),
-          h('td', {}, t('fecha_pago', { type: 'date', 'aria-label': 'Fecha de pago' })),
+          h('td', {}, select(Object.entries(MEDIOS_PAGO), m.medio, { 'aria-label': `Medio ${i + 1}`, onchange: (e) => { m.medio = e.target.value; m.cheque_id = ''; pintarMed(); pintarRes(); } })),
+          h('td', {}, tercero ? h('span', { class: 'num' }, cent(m.importe)) : inp(m.importe, (v) => { m.importe = v; pintarRes(); }, { 'aria-label': `Importe medio ${i + 1}` })),
+          h('td', {}, tercero
+            ? select([['', cartera.length ? 'Elegí el cheque de la cartera' : 'No hay cheques en cartera'], ...cartera.filter((c) => !usados.has(c.id)).map((c) => [c.id, `N° ${c.numero} · ${c.banco ?? ''} · ${pesos(c.importe)} · ${fechaAR(c.fecha_pago)}`])], m.cheque_id ?? '',
+              { 'aria-label': `Cheque de terceros ${i + 1}`, onchange: (e) => { m.cheque_id = e.target.value; const c = cartera.find((x) => x.id === m.cheque_id); m.importe = c ? aCentavos(c.importe) : 0; pintarMed(); pintarRes(); } })
+            : select([['', 'Elegí'], ...cuentasPara(m.medio).map((c) => [c.id, c.nombre])], m.cuenta_id, { 'aria-label': `Cuenta medio ${i + 1}`, onchange: (e) => { m.cuenta_id = e.target.value; } })),
+          h('td', {}, m.medio === 'efectivo' || tercero ? '—' : t('numero', { size: 12, 'aria-label': 'Número' })),
+          h('td', {}, tercero ? '—' : t('fecha_pago', { type: 'date', 'aria-label': 'Fecha de pago' })),
           h('td', {}, est.medios.length > 1 ? h('button', { class: 'btn btn-chico', type: 'button', onclick: () => { est.medios.splice(i, 1); pintarMed(); pintarRes(); } }, 'Quitar') : null));
       }))),
+      h('p', { class: 'campo-ayuda' }, 'Transferencia y efectivo salen en el momento. El cheque o echeq propio sale de la cuenta cuando se debita (Tesorería > Cheques). El cheque de terceros se endosa al proveedor.'),
       h('button', { class: 'btn btn-chico', type: 'button', onclick: () => { est.medios.push({ medio: 'echeq', importe: 0 }); pintarMed(); } }, '+ Otro medio')));
     const pintarRet = () => {
       if (!agente()) {
@@ -115,10 +126,17 @@ export async function pantallaNuevoPago(cont, ctx, provParam) {
       try {
         if (!est.proveedor_id) throw new Error('Elegí el proveedor.');
         const r = resumen();
-        if (!r.ok) throw new Error(r.errores.join(' '));
+        const errs = [...r.errores];
+        est.medios.filter((m) => m.importe || m.medio === 'cheque_tercero').forEach((m, i) => {
+          if (m.medio === 'cheque_tercero') { if (!m.cheque_id) errs.push(`Medio ${i + 1}: elegí el cheque de terceros.`); return; }
+          if (!m.cuenta_id) errs.push(`Medio ${i + 1}: elegí la cuenta o caja de la que sale.`);
+          if (['echeq', 'cheque'].includes(m.medio) && (!m.numero || !m.fecha_pago)) errs.push(`Medio ${i + 1}: falta el número o la fecha de pago del cheque propio.`);
+        });
+        if (errs.length) throw new Error(errs.join(' '));
         const d = datos();
         const id = await compras.registrarPago({ proveedor_id: est.proveedor_id, fecha: est.fecha, observacion: fObs.value,
-          medios: d.medios.map((m) => ({ medio: m.medio, importe: aTxt(m.importe), banco: m.banco, numero: m.numero, fecha_pago: m.fecha_pago || null })),
+          medios: d.medios.map((m) => ({ medio: m.medio, importe: aTxt(m.importe), banco: m.banco, numero: m.numero, fecha_pago: m.fecha_pago || null,
+            cuenta_id: m.medio === 'cheque_tercero' ? null : (m.cuenta_id || null), cheque_id: m.medio === 'cheque_tercero' ? m.cheque_id : null })),
           retenciones: d.retenciones.map((x) => ({ tipo: x.tipo, numero_certificado: x.numero_certificado, base: x.base ? aTxt(x.base) : null, alicuota: x.alicuota ?? null, importe: aTxt(x.importe) })),
           aplicaciones: d.aplicaciones.map((x) => ({ comprobante_id: x.comprobante_id, importe: aTxt(x.importe) })) });
         aviso('Pago registrado.');

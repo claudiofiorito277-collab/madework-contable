@@ -11,7 +11,8 @@ export const MENU = [
     { ruta: 'inicio', texto: 'Inicio' },
   ] },
   { grupo: 'Operación', items: [
-    { texto: 'Contratos y certificados', etapa: 2 },
+    { ruta: 'contratos', texto: 'Contratos y certificados' },
+    { ruta: 'clientes', texto: 'Clientes' },
     { texto: 'Ventas y cobranzas', etapa: 3 },
     { texto: 'Compras y pagos', etapa: 4 },
     { texto: 'Tesorería y cheques', etapa: 5 },

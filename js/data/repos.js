@@ -84,11 +84,110 @@ export const auditoria = {
 // ---------- Panel de inicio ----------
 export const resumen = {
   async pendientes() {
-    const [emp, params, perfs] = await Promise.all([
+    const [emp, params, perfs, contratosV, pols] = await Promise.all([
       empresa.obtener(),
       q(sb.from('parametros_fiscales').select('codigo, descripcion').eq('a_confirmar', true).is('vigente_hasta', null)),
       q(sb.from('perfiles').select('email, activo')),
+      q(sb.from('v_contratos').select('id, codigo, descripcion, estado, fecha_fin_prevista, unidades_por_certificar, monto_contractual, certificado_bruto').eq('activo', true)),
+      q(sb.from('polizas').select('id, tipo, aseguradora, vigencia_hasta, contrato_id, estado').in('estado', ['vigente', 'solicitada'])),
     ]);
-    return { empresa: emp, parametrosAConfirmar: params, usuariosInactivos: perfs.filter((p) => !p.activo) };
+    return { empresa: emp, parametrosAConfirmar: params, usuariosInactivos: perfs.filter((p) => !p.activo), contratos: contratosV, polizas: pols };
+  },
+};
+
+// ---------- Clientes ----------
+export const clientes = {
+  async listar() { return q(sb.from('clientes').select('*').order('razon_social')); },
+  async crear(c) { return q(sb.from('clientes').insert(c).select()); },
+  async actualizar(id, cambios) { return qActualizar(sb.from('clientes').update(cambios).eq('id', id).select()); },
+};
+
+// ---------- Contratos ----------
+export const contratos = {
+  async listar() { return q(sb.from('v_contratos').select('*').order('creado_en', { ascending: false })); },
+  async obtener(id) { return q(sb.from('v_contratos').select('*').eq('id', id).maybeSingle()); },
+  async crear(c) { return q(sb.from('contratos').insert(c).select()); },
+  async actualizar(id, cambios) { return qActualizar(sb.from('contratos').update(cambios).eq('id', id).select()); },
+  async items(contratoId) { return q(sb.from('contrato_items').select('*').eq('contrato_id', contratoId).order('orden').order('codigo')); },
+  async crearItem(i) { return q(sb.from('contrato_items').insert(i).select()); },
+  async actualizarItem(id, cambios) { return qActualizar(sb.from('contrato_items').update(cambios).eq('id', id).select()); },
+  async tramos(contratoId) { return q(sb.from('contrato_tramos').select('*').eq('contrato_id', contratoId).order('orden')); },
+  async crearTramo(t) { return q(sb.from('contrato_tramos').insert(t).select()); },
+  async actualizarTramo(id, cambios) { return qActualizar(sb.from('contrato_tramos').update(cambios).eq('id', id).select()); },
+  async redeterminaciones(contratoId) {
+    return q(sb.from('redeterminaciones').select('*, redeterminacion_precios(*)').eq('contrato_id', contratoId).order('numero'));
+  },
+  async crearRedeterminacion(r, precios = []) {
+    const [nueva] = await q(sb.from('redeterminaciones').insert(r).select());
+    if (precios.length) await q(sb.from('redeterminacion_precios').insert(precios.map((p) => ({ ...p, redeterminacion_id: nueva.id }))));
+    return nueva;
+  },
+  async actualizarRedeterminacion(id, cambios) { return qActualizar(sb.from('redeterminaciones').update(cambios).eq('id', id).select()); },
+};
+
+// ---------- Avance (planilla de columnas) ----------
+export const avance = {
+  async listar(contratoId) {
+    return q(sb.from('avance_unidades').select('*').eq('contrato_id', contratoId).order('identificador'));
+  },
+  async crear(filas) { return q(sb.from('avance_unidades').insert(filas).select()); },
+  async actualizar(id, cambios) { return qActualizar(sb.from('avance_unidades').update(cambios).eq('id', id).select()); },
+  async actualizarVarios(ids, cambios) {
+    if (!ids.length) return [];
+    return q(sb.from('avance_unidades').update(cambios).in('id', ids).select());
+  },
+};
+
+// ---------- Certificados ----------
+export const certificados = {
+  async listar(contratoId) {
+    return q(sb.from('certificados').select('*, certificado_items(*)').eq('contrato_id', contratoId).order('numero', { ascending: false }));
+  },
+  async obtener(id) { return q(sb.from('certificados').select('*, certificado_items(*)').eq('id', id).maybeSingle()); },
+  async crear(c) { return q(sb.from('certificados').insert(c).select()); },
+  async actualizar(id, cambios) { return qActualizar(sb.from('certificados').update(cambios).eq('id', id).select()); },
+  /** Reemplaza los ítems de un certificado en borrador y guarda los totales. */
+  async guardarBorrador(id, items, totales) {
+    await q(sb.from('certificado_items').delete().eq('certificado_id', id));
+    if (items.length) await q(sb.from('certificado_items').insert(items.map((i) => ({ ...i, certificado_id: id }))));
+    return qActualizar(sb.from('certificados').update(totales).eq('id', id).select());
+  },
+};
+
+// ---------- Multas ----------
+export const multas = {
+  async listar(contratoId) { return q(sb.from('multas').select('*').eq('contrato_id', contratoId).order('fecha', { ascending: false })); },
+  async crear(m) { return q(sb.from('multas').insert(m).select()); },
+  async actualizar(id, cambios) { return qActualizar(sb.from('multas').update(cambios).eq('id', id).select()); },
+};
+
+// ---------- Pólizas ----------
+export const polizas = {
+  async listar(contratoId) {
+    let c = sb.from('polizas').select('*').order('vigencia_hasta', { ascending: true });
+    if (contratoId) c = c.or(`contrato_id.eq.${contratoId},contrato_id.is.null`);
+    return q(c);
+  },
+  async crear(p) { return q(sb.from('polizas').insert(p).select()); },
+  async actualizar(id, cambios) { return qActualizar(sb.from('polizas').update(cambios).eq('id', id).select()); },
+};
+
+// ---------- Adjuntos (Supabase Storage) ----------
+export const adjuntos = {
+  async listar(tabla, registroId) {
+    return q(sb.from('adjuntos').select('*').eq('tabla', tabla).eq('registro_id', registroId).order('creado_en', { ascending: false }));
+  },
+  async subir(tabla, registroId, archivo, descripcion) {
+    if (archivo.size > 20 * 1024 * 1024) throw new Error('El archivo supera los 20 MB.');
+    const limpio = archivo.name.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.\-]+/g, '_');
+    const ruta = `${tabla}/${registroId}/${Date.now()}_${limpio}`;
+    const { error } = await sb.storage.from('adjuntos').upload(ruta, archivo, { contentType: archivo.type || undefined });
+    if (error) throw new Error(error.message);
+    return q(sb.from('adjuntos').insert({ tabla, registro_id: registroId, nombre: archivo.name, ruta, tipo_mime: archivo.type, tamano: archivo.size, descripcion: descripcion || null }).select());
+  },
+  async urlTemporal(ruta) {
+    const { data, error } = await sb.storage.from('adjuntos').createSignedUrl(ruta, 300);
+    if (error) throw new Error(error.message);
+    return data.signedUrl;
   },
 };

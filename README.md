@@ -2,7 +2,7 @@
 
 Sistema para los trabajos con Caminos de las Sierras. Separado de cualquier otro sistema de MADEWORK.
 
-**Estado:** Etapa 1 de 9 · base, usuarios, auditoría, parámetros fiscales, plan de cuentas y motor de IVA.
+**Estado:** Etapa 2 de 9 · contratos, planilla de columnas, certificados, multas, pólizas y redeterminaciones (sobre la base de la Etapa 1).
 
 ---
 
@@ -77,7 +77,50 @@ Los navegadores no abren este sistema con doble clic en `index.html`: necesita u
 
 ---
 
-## Qué incluye esta etapa
+## Etapa 2 · Contratos y certificados
+
+### Instalación (sobre la Etapa 1 ya instalada)
+
+1. Supabase → **SQL Editor** → **New query** → pegar todo `sql/002_contratos.sql` → **Run**. Tiene que decir *Success*. Se corre una sola vez.
+2. Subir a GitHub los archivos nuevos y modificados (carpetas `css`, `js`, `sql`, `tests` y los archivos `index.html`, `README.md`, `package.json`).
+3. En el navegador, recargar con **Ctrl + F5**.
+
+### Cómo se usa (flujo semanal)
+
+1. **Clientes:** cargar Caminos de las Sierras.
+2. **Contratos → Nuevo contrato:** código (ej. E55), cliente y obra. Después, en **Editar condiciones**: acta de replanteo, plazo, forma de pago, anticipo, fondo de reparo, multas.
+3. **Ítems:** cantidad y precio unitario de la oferta, y el costo presupuestado por unidad.
+4. **Columnas:** cargar los tramos y las columnas pintadas (de a rangos, ej. C-1 a C-40). Cuando la inspección firma, seleccionarlas y **Marcar aprobadas**.
+5. **Certificados → Nuevo:** período de la semana → **Traer columnas aprobadas** → revisar importes → **Guardar** → **Presentar** → **Imprimir** la planilla para firmar.
+6. Cuando Caminos de las Sierras lo aprueba: **Marcar aprobado** (administrador o contador).
+
+### Reglas que aplica la base de datos
+
+- Los certificados se numeran solos y correlativos por contrato; un número no se reutiliza (los anulados quedan).
+- Estados: borrador → presentado → aprobado → facturado → cobrado. También observado (vuelve a borrador para corregir) y anulado (con motivo).
+- Al presentar, la base verifica que el bruto sea la suma exacta de cantidad × precio de cada ítem.
+- Presentado en adelante, las cantidades, importes y columnas incluidas quedan bloqueadas.
+- Solo se certifican columnas **aprobadas** por la inspección, y una columna no puede estar en dos certificados.
+- Aprobar, anular y marcar facturado o cobrado: solo administrador o contador. El operador carga columnas, arma y presenta certificados, registra multas y pólizas.
+- Cada contrato e ítem crea su centro de costo automáticamente.
+- Archivos (contratos, certificados) en una carpeta privada de Supabase Storage; no se borran.
+
+### Lógica de certificados (`js/core/certificados.js`)
+
+- Importe = cantidad del período × precio vigente (oferta o redeterminación aprobada).
+- Fondo de reparo y descuento de anticipo como % del bruto; el anticipo nunca se descuenta de más.
+- Cada descuento puede ir en la factura o aparte (retención en el pago o nota de crédito), configurable por contrato.
+- Fecha de pago según pliego: primer viernes a partir de los 15 días corridos de presentada la factura.
+- Multas en litros de nafta × precio por litro.
+
+### A confirmar con el contador (Etapa 2)
+
+- **Ingresos Brutos:** el art. 6 del pliego dice que la obra está dentro de las excepciones del inc. 31 del art. 242 del Código Tributario de Córdoba (no incluir IIBB en el precio). Confirmar cómo se declara.
+- Si el descuento del anticipo se resta en cada factura o se compensa de otra forma.
+- Tratamiento de las multas (nota de crédito con o sin IVA).
+- Interpretación de la fecha de pago ("primer viernes siguiente a los 15 días").
+
+## Qué incluye la Etapa 1
 
 | Pantalla | Qué hace | Quién modifica |
 |---|---|---|
@@ -117,9 +160,9 @@ Los navegadores no abren este sistema con doble clic en `index.html`: necesita u
 Requieren [Node.js](https://nodejs.org) 20 o superior.
 
 ```
-npm test            # 41 pruebas: IVA, redondeo, vigencias, CUIT
+npm test            # 59 pruebas: IVA, redondeo, vigencias, CUIT, certificados
 npm install         # una vez, para la prueba de base de datos
-npm run test:sql    # 32 pruebas: migración, permisos, auditoría, vigencias
+npm run test:sql    # 64 pruebas: migraciones 001 y 002, permisos, auditoría, certificados
 ```
 
 ---
@@ -131,10 +174,11 @@ index.html            Entrada
 css/app.css           Estilos (computadora y celular)
 js/config.js          Conexión a Supabase (completar)
 js/app.js             Arranque, sesión y navegación
-js/core/              Lógica pura (IVA, redondeo, vigencias, CUIT), con pruebas
+js/core/              Lógica pura (IVA, redondeo, vigencias, CUIT, certificados), con pruebas
 js/data/              Única capa que habla con Supabase
 js/ui/                Pantallas
 sql/001_base.sql      Migración de la Etapa 1
+sql/002_contratos.sql Migración de la Etapa 2
 tests/                Pruebas automáticas
 ```
 

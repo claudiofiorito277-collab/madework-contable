@@ -39,6 +39,7 @@ export function aviso(texto, tipo = 'ok', ms = 4000) {
   zonaAvisos ??= document.body.appendChild(h('div', { class: 'avisos', role: 'status', 'aria-live': 'polite' }));
   const a = h('div', { class: `aviso aviso-${tipo}` }, texto);
   zonaAvisos.appendChild(a);
+  while (zonaAvisos.children.length > 2) zonaAvisos.firstChild.remove();
   setTimeout(() => a.remove(), ms);
 }
 export const error = (texto) => aviso(texto, 'error', 7000);
@@ -132,4 +133,59 @@ export function cargando(texto = 'Cargando…') {
 export async function pantalla(contenedor, fn) {
   vaciar(contenedor, cargando());
   try { await fn(); } catch (e) { vaciar(contenedor, h('div', { class: 'tarjeta tarjeta-error' }, h('strong', {}, 'No se pudo cargar. '), e.message)); }
+}
+
+// ---------- Importes y estados (pesos guardados en la base como numeric) ----------
+import { aCentavos as _aCent, formatear as _fmt } from '../core/redondeo.js';
+export const pesos = (v) => (v === null || v === undefined || v === '' ? '—' : _fmt(_aCent(v)));
+export const cent = (c) => (c === null || c === undefined ? '—' : _fmt(c));
+export const cantidadAR = (n) => (n === null || n === undefined || n === '' ? '—' : Number(n).toLocaleString('es-AR', { maximumFractionDigits: 3 }));
+
+/** Barra de progreso accesible. */
+export function barra(pct, texto) {
+  const v = Math.max(0, Math.min(100, Number(pct) || 0));
+  return h('div', { class: 'barra', role: 'progressbar', 'aria-valuenow': String(v), 'aria-valuemin': '0', 'aria-valuemax': '100', title: texto ?? `${v}%` },
+    h('div', { class: 'barra-relleno', style: { width: `${v}%` } }));
+}
+
+/** Tarjeta de dato destacado. */
+export function dato(titulo, valor, detalle, tipo) {
+  return h('div', { class: `dato${tipo ? ' dato-' + tipo : ''}` },
+    h('div', { class: 'dato-titulo' }, titulo), h('div', { class: 'dato-valor' }, valor),
+    detalle ? h('div', { class: 'dato-detalle' }, detalle) : null);
+}
+
+/** Pestañas simples. pestañas: [[id, texto]]; alCambiar(id) dibuja el contenido. */
+export function pestañas(lista, inicial, alCambiar) {
+  let actual = inicial;
+  const barraTabs = h('div', { class: 'pestañas', role: 'tablist' });
+  const dibujar = () => vaciar(barraTabs, lista.map(([id, t]) => h('button', {
+    type: 'button', role: 'tab', class: `pestaña${actual === id ? ' activa' : ''}`, 'aria-selected': String(actual === id),
+    onclick: () => { actual = id; dibujar(); alCambiar(id); },
+  }, t)));
+  dibujar();
+  return barraTabs;
+}
+
+/**
+ * Lee un importe escrito por el usuario y lo devuelve como texto con 2 decimales
+ * para la base ("172670.00"). Acepta "172.670", "172670", "172.670,50", "172670.5".
+ */
+export function leerPesos(txt, { obligatorio = false } = {}) {
+  const s = String(txt ?? '').trim().replace(/\$|\s/g, '');
+  if (!s) { if (obligatorio) throw new Error('Falta un importe.'); return null; }
+  let c;
+  if (s.includes(',')) c = _aCent(s);                         // formato argentino
+  else if (/^\d{1,3}(\.\d{3})+$/.test(s)) c = _aCent(s.replace(/\./g, '')); // solo separador de miles
+  else c = _aCent(s);
+  return (c / 100).toFixed(2);
+}
+
+/** Lee una cantidad (hasta 3 decimales). "1.234,5" -> 1234.5 ; "12,5" -> 12.5 */
+export function leerCantidad(txt, { obligatorio = false } = {}) {
+  const s = String(txt ?? '').trim().replace(/\s/g, '');
+  if (!s) { if (obligatorio) throw new Error('Falta una cantidad.'); return null; }
+  const n = s.includes(',') ? Number(s.replace(/\./g, '').replace(',', '.')) : Number(s);
+  if (!Number.isFinite(n)) throw new Error(`Cantidad inválida: ${txt}`);
+  return Math.round(n * 1000) / 1000;
 }

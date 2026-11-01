@@ -11,30 +11,41 @@ import { pantallaPlan } from './ui/plancuentas.js';
 import { pantallaCentros } from './ui/centros.js';
 import { pantallaUsuarios } from './ui/usuarios.js';
 import { pantallaAuditoria } from './ui/auditoria.js';
+import { pantallaClientes } from './ui/clientes.js';
+import { pantallaContratos } from './ui/contratos.js';
+import { pantallaContrato } from './ui/contrato.js';
+import { pantallaCertificado } from './ui/certificado.js';
 
 const PANTALLAS = {
   inicio: pantallaInicio, empresa: pantallaEmpresa, parametros: pantallaParametros, plan: pantallaPlan,
   centros: pantallaCentros, usuarios: pantallaUsuarios, auditoria: pantallaAuditoria,
+  clientes: pantallaClientes, contratos: pantallaContratos, contrato: pantallaContrato, certificado: pantallaCertificado,
 };
+// Rutas de detalle: se marcan en el menú con la sección a la que pertenecen
+const SECCION = { contrato: 'contratos', certificado: 'contratos' };
 
 const raiz = document.getElementById('app');
 let perfil = null;
 
 function rutaActual() {
-  const r = location.hash.replace(/^#\/?/, '').split('?')[0];
+  const r = location.hash.replace(/^#\/?/, '').split('?')[0].split('/')[0];
   return PANTALLAS[r] ? r : 'inicio';
+}
+function parametroRuta() {
+  return location.hash.replace(/^#\/?/, '').split('?')[0].split('/')[1] ?? null;
 }
 
 async function navegar() {
   if (!perfil) return;
   const ruta = rutaActual();
-  const item = MENU.flatMap((g) => g.items).find((i) => i.ruta === ruta);
-  const contenido = armarLayout(raiz, { perfil, rutaActual: ruta, alSalir: salir });
+  const seccion = SECCION[ruta] ?? ruta;
+  const item = MENU.flatMap((g) => g.items).find((i) => i.ruta === seccion);
+  const contenido = armarLayout(raiz, { perfil, rutaActual: seccion, alSalir: salir });
   if (item && !puedeVer(item, perfil.rol)) {
     vaciar(contenido, h('div', { class: 'tarjeta tarjeta-error' }, 'No tenés permiso para ver esta sección.'));
     return;
   }
-  try { await PANTALLAS[ruta](contenido, { perfil }); } catch (e) { error(mensajeError(e)); }
+  try { await PANTALLAS[ruta](contenido, { perfil }, parametroRuta()); } catch (e) { error(mensajeError(e)); }
   contenido.focus({ preventScroll: true });
 }
 

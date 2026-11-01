@@ -2,7 +2,9 @@
 
 Sistema para los trabajos con Caminos de las Sierras. Separado de cualquier otro sistema de MADEWORK.
 
-**Estado:** Etapa 8 de 9 · panel, reportes y exportaciones (sobre las Etapas 1 a 7: base, contratos y certificados, ventas y cobranzas, compras y pagos, tesorería, contabilidad, costos de obra).
+**Estado:** versión 1.0 · las 9 etapas terminadas (base, contratos y certificados, ventas y cobranzas, compras y pagos, tesorería, contabilidad, costos de obra, reportes y puesta en marcha).
+
+**Para empezar a usarlo con datos reales:** leé `docs/CONFIGURACION.md` (puesta en marcha, borrado de datos DEMO y respaldos), `docs/MANUAL.md` (cómo se usa, por tarea) y `docs/CONTADOR.md` (lo que hay que definir con el contador).
 
 ---
 
@@ -599,6 +601,28 @@ Cada reporte tiene los botones **Excel** y **PDF**. También los tienen los cinc
 - 30 pruebas de pantallas con el **criterio de aceptación**: el panel muestra el margen real del contrato DEMO (**$ 6.965.200, 67,2 %**: $ 10.360.200 certificados menos $ 3.395.000 de costo real); el **IVA Compras del mes se descarga en Excel** y se abre con sus filtros, usuario, dos comprobantes, el crédito fiscal de $ 430.500 y los importes como números; el **estado de resultados se descarga en PDF** con el mismo resultado que la pantalla. También: Libro IVA Digital con los cuatro archivos de largo correcto, IVA Ventas, retenciones, saldos, sumas y saldos, libro diario y flujo de fondos exportados, y el operador sin acceso a reportes.
 - Se volvieron a correr las pruebas de pantallas de las Etapas 2 a 7: sin cambios.
 
+## Etapa 9 · Manual, respaldos y puesta en marcha
+
+### Instalación (sobre la Etapa 8)
+
+1. Subir a GitHub las carpetas `css`, `js`, `sql`, `tests`, `docs` y `scripts`, y los archivos `index.html`, `README.md`, `package.json` y `.gitignore`.
+2. Supabase → **SQL Editor** → correr `sql/008_seguridad.sql` (ajuste final de permisos: sin iniciar sesión no se puede ejecutar ninguna función). Tiene que decir *Success*.
+3. Recargar con **Ctrl + F5**.
+
+### Qué trae
+
+- `docs/MANUAL.md`: manual de uso por tarea (certificar, facturar, cobrar con retenciones, cargar una compra desde el celular, pagar, conciliar el banco, cerrar el mes).
+- `docs/CONFIGURACION.md`: configuración inicial y puesta en marcha, respaldos y restauración, y la revisión de seguridad.
+- `docs/CONTADOR.md`: todos los puntos A CONFIRMAR, agrupados.
+- `sql/900_borrar_demo.sql`: borra todos los datos operativos de prueba y conserva la configuración. Pide confirmar cambiando `'NO'` por `'SI'`.
+- `scripts/respaldo.ps1`: respaldo de la base con un clic (Windows, con `pg_dump`). `sql/990_restaurar_preparar.sql`: prepara un proyecto nuevo para restaurar.
+- `sql/008_seguridad.sql`: resultado de la revisión final de seguridad.
+
+### Pruebas (Etapa 9)
+
+- Borrado de datos DEMO (19): sin confirmar no borra nada; confirmado, vacía las 25 tablas operativas probadas y conserva empresa, usuarios, parámetros, plan e imputaciones; después se cargan la empresa y el contrato reales, la numeración arranca de nuevo y la preparación de restauración vacía las 63 tablas.
+- Seguridad (23): RLS y políticas en las 63 tablas, nada para el rol anónimo (tablas, vistas ni funciones), `search_path` fijo, vistas con `security_invoker`, auditoría completa e inmodificable, permisos por rol y ninguna clave secreta ni contraseña en el código.
+
 ---
 
 ## Pruebas automáticas
@@ -608,7 +632,8 @@ Requieren [Node.js](https://nodejs.org) 20 o superior.
 ```
 npm test            # 141 pruebas: IVA, redondeo, vigencias, CUIT, certificados, ventas, compras, tesorería, contabilidad, costos, reportes y exportación
 npm install         # una vez, para la prueba de base de datos
-npm run test:sql    # 320 pruebas: migraciones 001 a 007, permisos, auditoría, certificados, ventas, compras, tesorería, contabilidad, costos
+npm run test:sql    # 362 pruebas: migraciones 001 a 008, permisos, auditoría, certificados, ventas, compras, tesorería, contabilidad, costos, borrado DEMO y seguridad
+npm run test:todo   # todas juntas
 ```
 
 ---
@@ -630,6 +655,11 @@ sql/004_compras.sql   Migración de la Etapa 4
 sql/005_tesoreria.sql Migración de la Etapa 5
 sql/006_contabilidad.sql Migración de la Etapa 6
 sql/007_costos.sql    Migración de la Etapa 7
+sql/008_seguridad.sql Ajuste final de permisos (Etapa 9)
+sql/900_borrar_demo.sql      Borrado de datos DEMO
+sql/990_restaurar_preparar.sql  Preparar un proyecto nuevo para restaurar un respaldo
+scripts/respaldo.ps1  Respaldo de la base (Windows)
+docs/                 Manual, configuración inicial y lista para el contador
 tests/                Pruebas automáticas
 ```
 

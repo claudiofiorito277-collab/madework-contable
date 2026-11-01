@@ -134,7 +134,7 @@ export async function pantallaInicio(cont, ctx) {
             [['Base, usuarios, parámetros fiscales e IVA', 1], ['Contratos y certificados', 2], ['Ventas y cobranzas', 3],
              ['Compras y pagos', 4], ['Tesorería y cheques', 5], ['Contabilidad', 6], ['Costos de obra', 7],
              ['Reportes', 8], ['Manual y puesta en marcha', 9]].map(([t, n]) =>
-              h('li', { class: n <= 8 ? 'hecho' : '' }, t, n <= 8 ? etiqueta('En uso', 'ok') : etiqueta(`Etapa ${n}`)))))),
+              h('li', { class: n <= 9 ? 'hecho' : '' }, t, n <= 9 ? etiqueta('En uso', 'ok') : etiqueta(`Etapa ${n}`)))))),
     );
   });
 }

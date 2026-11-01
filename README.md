@@ -2,7 +2,7 @@
 
 Sistema para los trabajos con Caminos de las Sierras. Separado de cualquier otro sistema de MADEWORK.
 
-**Estado:** Etapa 2 de 9 · contratos, planilla de columnas, certificados, multas, pólizas y redeterminaciones (sobre la base de la Etapa 1).
+**Estado:** Etapa 6 de 9 · contabilidad general (sobre las Etapas 1 a 5: base, contratos y certificados, ventas y cobranzas, compras y pagos, tesorería).
 
 ---
 
@@ -314,14 +314,111 @@ Así se ve con anticipación una semana en la que el saldo queda en rojo.
 - Tratamiento de los gastos bancarios por cheques rechazados.
 - Si conviene una cuenta de caja chica por obra.
 
+## Etapa 6 · Contabilidad general
+
+Contabilidad general: cada factura, nota de crédito, cobranza, compra, pago, movimiento de caja o banco y cheque rechazado genera su **asiento automático**. Las cuentas que usa cada concepto salen de una **tabla de configuración**, no están fijas en el programa. Además: asientos manuales, numeración correlativa por ejercicio, anulación con contraasiento, cierre y reapertura de meses, cierre de ejercicio, y los libros (diario, mayor, sumas y saldos, estado de resultados y situación patrimonial), por período y por contrato.
+
+### Instalación (sobre la Etapa 5 ya instalada)
+
+1. Subir a GitHub las carpetas `css`, `js`, `sql` y `tests`, y los archivos `index.html`, `README.md` y `package.json`.
+2. Supabase → **SQL Editor** → correr `sql/006_contabilidad.sql`. Tiene que decir *Success*. Se corre una sola vez.
+3. En el navegador, recargar con **Ctrl + F5**.
+
+### Primer paso: revisar la configuración con el contador
+
+**Contabilidad → Configuración.** Ahí está cada concepto (deudores por ventas, ventas, IVA débito, retenciones sufridas, proveedores, costos por rubro, caja, bancos, gastos bancarios, resultado del ejercicio…) con la cuenta del plan que usa. Ya viene cargado con el plan borrador. Las marcadas **A CONFIRMAR** conviene revisarlas con el contador. En **Cajas y bancos** se puede asignar a cada banco su propia cuenta contable; si no, usa "Bancos" o "Caja".
+
+Si se cambia una cuenta, los asientos nuevos usan la nueva. Para rehacer los de un mes abierto: **Contabilizar → Regenerar asientos de un período**. Solo se rehacen los que cambian (se anulan con contraasiento y se registran de nuevo).
+
+### Cómo se usa
+
+#### Contabilizar
+
+**Contabilidad → Contabilizar** muestra lo que todavía no tiene asiento. **Ver asiento** muestra el asiento propuesto antes de registrarlo. **Contabilizar todo** los registra de una vez.
+
+Qué asiento arma cada cosa:
+
+- **Factura de venta:** Deudores por ventas al debe; Ventas (por contrato) e IVA débito fiscal al haber. La nota de crédito, al revés.
+- **Cobranza:** el banco, la caja o "Valores a depositar" (cheques y echeqs), las retenciones sufridas y el fondo de reparo al debe; Deudores por ventas (y Anticipos de clientes si queda a cuenta) al haber.
+- **Factura de compra:** el costo por rubro y por contrato, el IVA crédito fiscal y las percepciones al debe; Proveedores al haber. Si el IVA no se discrimina, va todo al costo.
+- **Pago:** Proveedores (o Anticipos a proveedores) al debe; banco, caja, "Cheques diferidos emitidos" o el cheque de terceros endosado al haber.
+- **Tesorería:** transferencias entre cuentas, gastos e impuestos bancarios, aportes y retiros, acreditación y débito de cheques. Los movimientos que vienen de una cobranza o un pago no repiten asiento.
+- **Cheque rechazado:** vuelve la deuda del cliente (o con el proveedor) y se da de baja el cheque.
+- **Descuento del anticipo en un certificado:** cuando el contrato lo prevé.
+
+Si se anula un comprobante que ya estaba contabilizado, aparece en la lista como **Anular su asiento**: al contabilizar se registra el contraasiento.
+
+Cada asiento tiene un botón **Ver … de origen** que abre su factura, recibo, compra, orden de pago o movimiento. Y cada línea queda con su contrato y centro de costo.
+
+#### Asiento manual
+
+**+ Asiento manual**: para lo que no viene de un comprobante (aporte de capital, saldos iniciales, amortizaciones, ajustes que indique el contador). Se eligen las cuentas e importes; el sistema muestra la diferencia y **no deja registrar si el debe no es igual al haber**.
+
+#### Un asiento no se modifica
+
+Un asiento registrado no se edita: se **anula** con un contraasiento (las mismas cuentas invertidas) y un **motivo** obligatorio. Los dos quedan vinculados y en la auditoría. Si el mes del asiento está cerrado, se puede poner fecha del contraasiento en un mes abierto.
+
+#### Cierre de meses
+
+**Contabilidad → Cierre de meses.**
+
+- **Cerrar mes:** solo se puede si no queda nada pendiente de contabilizar en ese mes. Un mes cerrado **bloquea** la carga y la anulación de facturas, compras, cobranzas, pagos, movimientos y asientos con fecha de ese mes.
+- **Reabrir:** solo administrador o contador, con **motivo obligatorio**. Queda registrado quién y por qué.
+
+En Inicio aparece el aviso cuando hay operaciones sin contabilizar de meses anteriores.
+
+#### Cierre de ejercicio
+
+En la misma pantalla, **Cerrar ejercicio** registra la refundición de resultados (ingresos y gastos contra "Resultado del ejercicio"), el asiento de cierre y la apertura del ejercicio siguiente, y cierra todos sus meses. **Hacerlo junto con el contador.**
+
+**Ajuste por inflación: no se calcula. A CONFIRMAR CON CONTADOR.**
+
+#### Libros
+
+- **Libro diario:** asientos del período con sus líneas, numerados por ejercicio. Muestra si balancea.
+- **Mayor:** una cuenta, con saldo anterior, movimientos y saldo corrido.
+- **Sumas y saldos:** todas las cuentas con debe, haber y saldo; muestra si **cuadra**. Se puede filtrar por contrato.
+- **Resultados:** ingresos menos costos y gastos del período, de toda la empresa o de un contrato.
+- **Patrimonio:** activo, pasivo y patrimonio neto a una fecha, con el resultado del período todavía no cerrado.
+
+Todos tienen botón **Imprimir** (o guardar como PDF desde la impresión).
+
+### Reglas que aplica la base de datos
+
+- Cada asiento balancea (debe = haber), usa solo cuentas imputables y activas, y tiene al menos dos líneas.
+- Numeración correlativa por ejercicio, sin huecos.
+- Un comprobante tiene un solo asiento vigente.
+- Los asientos no se editan ni se borran: se anulan con contraasiento y motivo.
+- Un mes cerrado bloquea cargas y anulaciones con fecha de ese mes; no se cierra con pendientes; se reabre solo con motivo.
+- Un ejercicio cerrado no se reabre.
+- Una cuenta con asientos no cambia de código ni de rubro.
+- Registran asientos y cierran meses el administrador y el contador; la consulta solo ve; el operador no ve la contabilidad.
+
+### A confirmar con el contador (Etapa 6)
+
+- Las cuentas de la **configuración de imputaciones**, en especial las marcadas A CONFIRMAR (anticipo financiero facturado, multas por nota de crédito).
+- Plan de cuentas definitivo y si conviene una subcuenta por banco.
+- **Ajuste por inflación contable:** no se calcula.
+- Saldos iniciales al 01/11/2026 (se cargan con un asiento manual).
+- Tratamiento del fondo de reparo y del anticipo financiero.
+
+### Pruebas (Etapa 6)
+
+- 121 pruebas de cálculo (18 nuevas de contabilidad: asiento de cada tipo de comprobante, contraasiento, validación debe = haber, sumas y saldos, mayor, resultados, situación patrimonial, refundición, cierre y apertura).
+- 275 pruebas de base de datos (Etapas 1 a 6; 44 nuevas de contabilidad: numeración, inmutabilidad, anulación, períodos, cierre de ejercicio y permisos).
+- 37 pruebas de pantallas con el **criterio de aceptación** sobre los datos DEMO de las etapas anteriores: el balance de sumas y saldos cuadra, cada uno de los asientos automáticos abre su comprobante, y con el mes cerrado no se puede cargar factura, compra, cobranza, pago ni asiento, ni anular. También: asiento manual desbalanceado rechazado, anulación con contraasiento, reapertura con motivo y regeneración tras cambiar una cuenta.
+- Se volvieron a correr las pruebas de pantallas de las Etapas 2 a 5: sin cambios.
+
+---
+
 ## Pruebas automáticas
 
 Requieren [Node.js](https://nodejs.org) 20 o superior.
 
 ```
-npm test            # 103 pruebas: IVA, redondeo, vigencias, CUIT, certificados, ventas, compras, tesorería
+npm test            # 121 pruebas: IVA, redondeo, vigencias, CUIT, certificados, ventas, compras, tesorería, contabilidad
 npm install         # una vez, para la prueba de base de datos
-npm run test:sql    # 231 pruebas: migraciones 001 a 005, permisos, auditoría, certificados, ventas, compras, tesorería
+npm run test:sql    # 275 pruebas: migraciones 001 a 006, permisos, auditoría, certificados, ventas, compras, tesorería, contabilidad
 ```
 
 ---
@@ -333,7 +430,7 @@ index.html            Entrada
 css/app.css           Estilos (computadora y celular)
 js/config.js          Conexión a Supabase (completar)
 js/app.js             Arranque, sesión y navegación
-js/core/              Lógica pura (IVA, redondeo, vigencias, CUIT, certificados, ventas, compras, tesorería), con pruebas
+js/core/              Lógica pura (IVA, redondeo, vigencias, CUIT, certificados, ventas, compras, tesorería, asientos), con pruebas
 js/data/              Única capa que habla con Supabase
 js/ui/                Pantallas
 sql/001_base.sql      Migración de la Etapa 1
@@ -341,6 +438,7 @@ sql/002_contratos.sql Migración de la Etapa 2
 sql/003_ventas.sql    Migración de la Etapa 3
 sql/004_compras.sql   Migración de la Etapa 4
 sql/005_tesoreria.sql Migración de la Etapa 5
+sql/006_contabilidad.sql Migración de la Etapa 6
 tests/                Pruebas automáticas
 ```
 
@@ -363,3 +461,5 @@ tests/                Pruebas automáticas
 - Factura M: tratamiento del crédito fiscal y régimen de retención.
 - Códigos de tipos de comprobante (se cargaron los de ARCA como referencia).
 - Fecha de cierre del ejercicio.
+- Cuentas de la configuración de imputaciones contables.
+- Ajuste por inflación contable (no se calcula).

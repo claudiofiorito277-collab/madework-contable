@@ -55,6 +55,14 @@ export async function pantallaInicio(cont, ctx) {
       alertas.push([`Cheque ${ch.tipo === 'recibido' ? `de ${ch.cliente ?? 'terceros'}` : `propio a ${ch.proveedor ?? ''}`} N° ${ch.numero} (${pesos(ch.importe)}): ${a.texto.replace(/\d{4}-\d{2}-\d{2}/g, (x) => fechaAR(x))}`, '#/tesoreria/cheques', a.tipo]);
     }
 
+    // Contabilidad
+    const pc = r.contables ?? [];
+    if (pc.length && ['administrador', 'contador'].includes(ctx.perfil.rol)) {
+      const mesAnt = new Date(`${hoy.slice(0, 7)}-01T00:00:00Z`); mesAnt.setUTCDate(0);
+      const viejos = pc.filter((x) => x.fecha <= mesAnt.toISOString().slice(0, 10)).length;
+      alertas.push([`${pc.length} operación(es) sin contabilizar${viejos ? ` (${viejos} de meses anteriores: hay que contabilizarlas para cerrar el mes)` : ''}`, '#/contabilidad/pendientes', viejos ? 'peligro' : 'alerta']);
+    }
+
     // Configuración pendiente
     const pendientes = [];
     if (!e.cuit) pendientes.push(['Cargar el CUIT de la empresa', '#/empresa']);
@@ -87,7 +95,7 @@ export async function pantallaInicio(cont, ctx) {
             [['Base, usuarios, parámetros fiscales e IVA', 1], ['Contratos y certificados', 2], ['Ventas y cobranzas', 3],
              ['Compras y pagos', 4], ['Tesorería y cheques', 5], ['Contabilidad', 6], ['Costos de obra', 7],
              ['Reportes', 8], ['Manual y puesta en marcha', 9]].map(([t, n]) =>
-              h('li', { class: n <= 5 ? 'hecho' : '' }, t, n <= 5 ? etiqueta('En uso', 'ok') : etiqueta(`Etapa ${n}`)))))),
+              h('li', { class: n <= 6 ? 'hecho' : '' }, t, n <= 6 ? etiqueta('En uso', 'ok') : etiqueta(`Etapa ${n}`)))))),
     );
   });
 }

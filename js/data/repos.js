@@ -84,7 +84,7 @@ export const auditoria = {
 // ---------- Panel de inicio ----------
 export const resumen = {
   async pendientes() {
-    const [emp, params, perfs, contratosV, pols, porFacturar, comprobantes, compras, cheques] = await Promise.all([
+    const [emp, params, perfs, contratosV, pols, porFacturar, comprobantes, compras, cheques, contables] = await Promise.all([
       empresa.obtener(),
       q(sb.from('parametros_fiscales').select('codigo, descripcion').eq('a_confirmar', true).is('vigente_hasta', null)),
       q(sb.from('perfiles').select('email, activo')),
@@ -94,9 +94,10 @@ export const resumen = {
       q(sb.from('v_comprobantes_venta').select('id, clase, cae, saldo, vencimiento, numero_formateado, cliente').eq('estado', 'emitido')),
       q(sb.from('v_comprobantes_compra').select('id, clase, revisado, saldo, vencimiento, numero_formateado, proveedor').eq('estado', 'emitido')),
       q(sb.from('v_cheques').select('id, tipo, estado, numero, fecha_pago, importe, cliente, proveedor').in('estado', ['en_cartera', 'emitido'])),
+      q(sb.from('v_pendientes_contabilizar').select('origen_tabla, fecha')),
     ]);
     return { empresa: emp, parametrosAConfirmar: params, usuariosInactivos: perfs.filter((p) => !p.activo), contratos: contratosV, polizas: pols,
-      porFacturar, comprobantes, compras, cheques };
+      porFacturar, comprobantes, compras, cheques, contables };
   },
 };
 
@@ -350,4 +351,40 @@ export const tesoreria = {
   async desconciliar(linea) { return q(sb.rpc('fn_desconciliar', { p_linea: linea })); },
   async ignorar(linea, motivo) { return q(sb.rpc('fn_ignorar_linea', { p_linea: linea, p_motivo: motivo })); },
   async desdeLinea(linea, categoria, descripcion) { return q(sb.rpc('fn_movimiento_desde_linea', { p_linea: linea, p_categoria: categoria, p_descripcion: descripcion || null })); },
+};
+
+// ---------- Contabilidad (Etapa 6) ----------
+export const contabilidad = {
+  async plan() { return q(sb.from('plan_cuentas').select('*').order('codigo')); },
+  async imputaciones() { return q(sb.from('imputaciones_contables').select('*').order('grupo').order('clave')); },
+  async actualizarImputacion(clave, cuentaId) { return qActualizar(sb.from('imputaciones_contables').update({ cuenta_id: cuentaId || null }).eq('clave', clave).select()); },
+  async cuentasTesoreria() { return q(sb.from('cuentas_tesoreria').select('id, nombre, tipo, cuenta_contable_id').order('nombre')); },
+  async asignarCuentaTesoreria(id, cuentaId) { return qActualizar(sb.from('cuentas_tesoreria').update({ cuenta_contable_id: cuentaId || null }).eq('id', id).select()); },
+  async pendientes() { return q(sb.from('v_pendientes_contabilizar').select('*').order('fecha')); },
+  async asientos({ desde, hasta } = {}) {
+    let c = sb.from('v_asientos').select('*').order('fecha').order('numero');
+    if (desde) c = c.gte('fecha', desde);
+    if (hasta) c = c.lte('fecha', hasta);
+    return q(c);
+  },
+  async asiento(id) {
+    const [cab, lineas] = await Promise.all([q(sb.from('v_asientos').select('*').eq('id', id).maybeSingle()),
+      q(sb.from('v_asiento_lineas').select('*').eq('asiento_id', id).order('orden'))]);
+    return cab ? { ...cab, lineas } : null;
+  },
+  async asientosDe(origenTabla, origenId) { return q(sb.from('v_asientos').select('*').eq('origen_tabla', origenTabla).eq('origen_id', origenId).order('numero')); },
+  async lineas({ desde, hasta, cuentaId } = {}) {
+    let c = sb.from('v_asiento_lineas').select('*').order('fecha').order('numero');
+    if (desde) c = c.gte('fecha', desde);
+    if (hasta) c = c.lte('fecha', hasta);
+    if (cuentaId) c = c.eq('cuenta_id', cuentaId);
+    return q(c);
+  },
+  async registrar(p) { return q(sb.rpc('fn_registrar_asiento', { p })); },
+  async anular(id, motivo, fecha) { return q(sb.rpc('fn_anular_asiento', { p_id: id, p_motivo: motivo, p_fecha: fecha || null })); },
+  async periodos() { return q(sb.from('periodos').select('*').order('anio').order('mes')); },
+  async ejercicios() { return q(sb.from('ejercicios').select('*').order('anio')); },
+  async cerrarPeriodo(anio, mes) { return q(sb.rpc('fn_cerrar_periodo', { p_anio: anio, p_mes: mes })); },
+  async reabrirPeriodo(anio, mes, motivo) { return q(sb.rpc('fn_reabrir_periodo', { p_anio: anio, p_mes: mes, p_motivo: motivo })); },
+  async cerrarEjercicio(anio) { return q(sb.rpc('fn_cerrar_ejercicio', { p_anio: anio })); },
 };

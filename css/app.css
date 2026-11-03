@@ -56,7 +56,7 @@ a.menu-item:hover { background: rgba(255, 255, 255, .08); }
   display: flex; justify-content: flex-end; align-items: center; gap: 1rem;
   padding: .6rem 1.5rem; background: var(--blanco); border-bottom: 1px solid var(--borde);
 }
-.cabecera-usuario { display: flex; align-items: center; gap: .6rem; font-size: .9rem; }
+.cabecera-usuario { display: flex; align-items: center; gap: .6rem; font-size: .9rem; flex-wrap: wrap; justify-content: flex-end; }
 .btn-menu { display: none; margin-right: auto; }
 .contenido { padding: 1.5rem; max-width: 1200px; width: 100%; outline: none; }
 .encabezado { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
